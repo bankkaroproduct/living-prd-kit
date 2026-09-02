@@ -1,0 +1,87 @@
+# prd.manifest.yaml — the machine-readable index of a Living PRD bundle. (standard v1.1)
+# Downstream AI agents read this FIRST. Keep it strict: no prose, no "see doc".
+# If this file and any other artifact disagree, fix whichever is wrong the same day
+# and record it in `changelog`.
+
+prd:
+  id: <feature-slug>              # e.g. axis-rewards-v1
+  title: <one line>
+  owner: <pm-name>
+  tech_lead: <name>               # G2 reviewer, G4 signatory
+  qa: <name>                      # G2 reviewer, G4 signatory, G6 owner
+  designer: <name | none>
+  tier: T1 | T2 | T3
+  status: framing | building | alpha-review | bundle-assembly | frozen | in-build | reconciled | shipped | archived
+  standard_version: "1.1"
+
+mandate:                          # §5 — when the full process is required
+  mandatory: true | false
+  triggers: []                    # any of: regulated-data, payments-kyc-pii, complex-state-machine, irreversible-actions, cross-team
+  opt_out: <date + by | n/a>      # only valid when triggers is empty; re-enters at G2 if a trigger appears later
+
+prototype:
+  kind: single-file-html | standalone-app | codebase-fork
+  entry: <URL or repo+branch or file path>
+  run: <exact command or "open file">   # a cold session must be able to start it from this line alone
+  base: <for T3: sanctioned-fork point — repo, branch, SHA, refresh date>
+
+data:
+  provenance: hardcoded | synthetic | staging-dump
+  dump_date: <YYYY-MM-DD | n/a>
+  pii_scrubbed: true              # false is not an acceptable value for staging-dump
+  scrub_method: <one line | n/a>
+
+# Fidelity map — every surface, API call, and data path. Nothing unlabeled.
+# PROVEN     = runs against real/staging systems; behaviour authoritative
+# SIMULATED  = mock honouring a written contract in MOCKS.md; behaviour authoritative, numbers may not be
+# INDICATIVE = visual only; do not trust values, copy, or data shapes
+fidelity:
+  - path: <screen/flow/API — e.g. "plan-configurator pricing">
+    label: PROVEN | SIMULATED | INDICATIVE
+    note: <one line — e.g. "live staging rate chart" / "mock M2, contract in MOCKS.md">
+
+coverage_plan:                    # agreed at G2 Alpha Review; scenario IDs carry into production tickets/tests
+  agreed_at: <date | pending>
+  scenarios:
+    - id: <S1>
+      name: <one line>
+      status: demonstrable | not-demonstrable | pending
+
+artifacts:                        # status: missing | draft | complete
+  spec: { file: SPEC.md, status: draft }
+  tracking: { file: TRACKING.md, status: draft }
+  mocks: { file: MOCKS.md, status: draft }
+  decisions: { file: DECISIONS.md, status: draft }
+  handoff: { file: HANDOFF.md, status: missing }
+  evidence: { dir: EVIDENCE/, status: missing }
+
+gates:                            # date + who, or pending
+  g0_frame: { passed: <date | pending>, by: <pm> }
+  g1_solution: { passed: pending, by: "" }
+  g2_alpha_review: { passed: pending, tech_lead: "", qa: "", coverage_plan: agreed | pending }
+  g3_bundle_complete: { passed: pending, by: "" }        # PM self-gate + AI gap-detection clean
+  g4_freeze: { passed: pending }                          # see release block — three signatures
+  g5_productionise: { passed: pending, by: "" }
+  g6_reconcile: { passed: pending, by: "" }
+
+release:                          # the immutable Handoff Release created at G4; a material change creates a NEW release
+  frozen: pending                 # date when frozen
+  prototype_commits: []           # exact SHAs (or file hash for single-file T1)
+  figma_versions: []              # snapshot links/ids | n/a
+  api_contracts: []               # OpenAPI/spec versions pinned | n/a
+  evidence_tag: <git tag | folder snapshot>
+  approvals:
+    pm_intent_behaviour: { by: "", date: pending }
+    tech_feasibility_delta: { by: "", date: pending }
+    qa_coverage_testability: { by: "", date: pending }
+  supersedes: <previous release id | n/a>
+
+cold_session:
+  passed: pending                 # date when passed — required for G4
+  transcript: EVIDENCE/cold-session-<date>.md
+  open_defects: 0                 # questions the bundle could not answer; must be 0 at freeze
+
+changelog:
+  - date: <YYYY-MM-DD>
+    change: <what changed in the bundle>
+    reason: <why — decision closed / prototype-spec disagreement (state which won) / scope change / reopened approval>
