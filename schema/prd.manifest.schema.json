@@ -1,0 +1,259 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/bankkaroproduct/living-prd-kit/schema/prd.manifest.schema.json",
+  "title": "Living PRD manifest (standard v1.2)",
+  "type": "object",
+  "required": ["prd", "mandate", "prototype", "data", "fidelity", "coverage_plan", "artifacts", "gates", "release", "cold_session", "changelog"],
+  "additionalProperties": false,
+  "properties": {
+    "prd": {
+      "type": "object",
+      "required": ["id", "title", "owner", "tech_lead", "qa", "tier", "status", "standard_version"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "owner": { "type": "string" },
+        "tech_lead": { "type": "string" },
+        "qa": { "type": "string" },
+        "designer": { "type": "string" },
+        "tier": { "enum": ["T1", "T2", "T3"] },
+        "status": { "enum": ["framing", "building", "alpha-review", "bundle-assembly", "frozen", "in-build", "reconciled", "shipped", "archived"] },
+        "standard_version": { "type": "string" }
+      }
+    },
+    "pinned_versions": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "mandate": {
+      "type": "object",
+      "required": ["mandatory", "triggers", "opt_out"],
+      "additionalProperties": false,
+      "properties": {
+        "mandatory": { "type": ["boolean", "null"] },
+        "triggers": {
+          "type": "array",
+          "items": { "enum": ["regulated-data", "payments-kyc-pii", "complex-state-machine", "irreversible-actions", "cross-team"] }
+        },
+        "opt_out": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "triggers": { "minItems": 1 } }, "required": ["triggers"] },
+          "then": { "properties": { "mandatory": { "const": true }, "opt_out": { "const": "n/a" } } }
+        }
+      ]
+    },
+    "prototype": {
+      "type": "object",
+      "required": ["kind", "entry", "run"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "enum": ["single-file-html", "standalone-app", "codebase-fork"] },
+        "entry": { "type": "string" },
+        "run": { "type": "string" },
+        "base": { "type": "string" }
+      }
+    },
+    "data": {
+      "type": "object",
+      "required": ["provenance", "dump_date", "scrub_pipeline", "pii_scrubbed"],
+      "additionalProperties": false,
+      "properties": {
+        "provenance": { "enum": ["synthetic", "hardcoded", "staging-dump"] },
+        "dump_date": { "type": "string" },
+        "scrub_pipeline": { "type": "string" },
+        "pii_scrubbed": { "type": ["boolean", "null"] }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "provenance": { "const": "staging-dump" } } },
+          "then": {
+            "properties": {
+              "pii_scrubbed": { "const": true },
+              "dump_date": { "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+              "scrub_pipeline": { "not": { "enum": ["n/a", "", "pending"] } }
+            }
+          }
+        }
+      ]
+    },
+    "fidelity": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["path", "label"],
+        "additionalProperties": false,
+        "properties": {
+          "path": { "type": "string" },
+          "label": { "enum": ["PROVEN", "SIMULATED", "INDICATIVE"] },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "coverage_plan": {
+      "type": "object",
+      "required": ["agreed_at", "scenarios"],
+      "additionalProperties": false,
+      "properties": {
+        "agreed_at": { "type": "string" },
+        "scenarios": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "status"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "pattern": "^S\\d+$" },
+              "name": { "type": "string" },
+              "status": { "enum": ["pending", "demonstrable", "not-demonstrable"] },
+              "not_demonstrable_reason": { "type": "string" },
+              "links": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "spec": { "type": "string" },
+                  "events": { "type": "array", "items": { "type": "string" } },
+                  "mocks": { "type": "array", "items": { "type": "string" } },
+                  "evidence": { "type": "string" },
+                  "production_ref": { "type": "string" },
+                  "reconcile": { "enum": ["pass", "deviation-approved", "pending"] }
+                }
+              }
+            },
+            "allOf": [
+              {
+                "if": { "properties": { "status": { "const": "not-demonstrable" } } },
+                "then": {
+                  "properties": { "not_demonstrable_reason": { "not": { "enum": ["n/a", "", "pending"] } } },
+                  "required": ["not_demonstrable_reason"]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["spec", "tracking", "mocks", "decisions", "handoff", "evidence", "contracts"],
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(spec|tracking|mocks|decisions|handoff)$": {
+          "type": "object",
+          "required": ["file", "status"],
+          "properties": { "file": { "type": "string" }, "status": { "enum": ["missing", "draft", "complete"] } },
+          "additionalProperties": false
+        },
+        "^(evidence|contracts)$": {
+          "type": "object",
+          "required": ["dir", "status"],
+          "properties": { "dir": { "type": "string" }, "status": { "enum": ["missing", "draft", "complete"] } },
+          "additionalProperties": false
+        }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "required": ["g0_frame", "g1_solution", "g2_alpha_review", "g3_bundle_complete", "g4_freeze", "g5_productionise", "g6_reconcile"],
+      "additionalProperties": false,
+      "properties": {
+        "g0_frame": { "$ref": "#/$defs/simpleGate" },
+        "g1_solution": { "$ref": "#/$defs/simpleGate" },
+        "g2_alpha_review": {
+          "type": "object",
+          "required": ["passed", "tech_lead", "qa", "coverage_plan"],
+          "additionalProperties": false,
+          "properties": {
+            "passed": { "type": "string" },
+            "tech_lead": { "type": "string" },
+            "qa": { "type": "string" },
+            "coverage_plan": { "type": "string" }
+          }
+        },
+        "g3_bundle_complete": { "$ref": "#/$defs/simpleGate" },
+        "g4_freeze": {
+          "type": "object",
+          "required": ["passed"],
+          "additionalProperties": false,
+          "properties": { "passed": { "type": "string" } }
+        },
+        "g5_productionise": { "$ref": "#/$defs/simpleGate" },
+        "g6_reconcile": { "$ref": "#/$defs/simpleGate" }
+      }
+    },
+    "release": {
+      "type": "object",
+      "required": ["release_id", "frozen", "prototype_commits", "figma_versions", "api_contracts", "evidence_tag", "digest", "approvals", "supersedes"],
+      "additionalProperties": false,
+      "properties": {
+        "release_id": { "type": "string" },
+        "frozen": { "type": "string" },
+        "prototype_commits": { "type": "array", "items": { "type": "string" } },
+        "figma_versions": { "type": "array", "items": { "type": "string" } },
+        "api_contracts": { "type": "array", "items": { "type": "string" } },
+        "evidence_tag": { "type": "string" },
+        "digest": { "type": "string" },
+        "approvals": {
+          "type": "object",
+          "required": ["pm_intent_behaviour", "tech_feasibility_delta", "qa_coverage_testability"],
+          "additionalProperties": false,
+          "patternProperties": { ".*": { "$ref": "#/$defs/approval" } }
+        },
+        "supersedes": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "frozen": { "not": { "const": "pending" } } } },
+          "then": {
+            "properties": {
+              "release_id": { "pattern": "^prd-[a-z0-9-]+-r\\d+$" },
+              "prototype_commits": { "minItems": 1 },
+              "digest": { "pattern": "^sha256:[0-9a-f]{64}$" },
+              "evidence_tag": { "not": { "const": "pending" } }
+            }
+          }
+        }
+      ]
+    },
+    "cold_session": {
+      "type": "object",
+      "required": ["passed", "transcript", "open_defects"],
+      "additionalProperties": false,
+      "properties": {
+        "passed": { "type": "string" },
+        "transcript": { "type": "string" },
+        "open_defects": { "type": "integer", "minimum": -1 }
+      }
+    },
+    "changelog": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["date", "change", "reason"],
+        "additionalProperties": false,
+        "properties": {
+          "date": { "type": "string" },
+          "change": { "type": "string" },
+          "reason": { "type": "string" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "simpleGate": {
+      "type": "object",
+      "required": ["passed", "by"],
+      "additionalProperties": false,
+      "properties": { "passed": { "type": "string" }, "by": { "type": "string" } }
+    },
+    "approval": {
+      "type": "object",
+      "required": ["by", "date"],
+      "additionalProperties": false,
+      "properties": { "by": { "type": "string" }, "date": { "type": "string" } }
+    }
+  }
+}

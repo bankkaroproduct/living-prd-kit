@@ -1,0 +1,10 @@
+# Binds the three freeze signatures to real GitHub identities.
+# Replace placeholders, then in repo settings: require Code Owner reviews on main,
+# and protect the tag pattern prd/* (that tag is the immutable release).
+*                     @pm-handle
+SPEC.md               @pm-handle @tech-lead-handle
+HANDOFF.md            @pm-handle @tech-lead-handle
+contracts/            @tech-lead-handle
+EVIDENCE/             @pm-handle @qa-handle
+TRACKING.md           @pm-handle @qa-handle
+prd.manifest.yaml     @pm-handle @tech-lead-handle @qa-handle

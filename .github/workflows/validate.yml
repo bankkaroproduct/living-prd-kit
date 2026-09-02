@@ -1,0 +1,39 @@
+name: validate
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  kit-self-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyyaml jsonschema
+      - name: Kit self-check (manifest template + schema + PII/secret scan)
+        run: python3 bin/validate.py --kit
+
+  bundles:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyyaml jsonschema
+      - name: Validate all prd-* bundles
+        run: |
+          set -e
+          found=0
+          for d in prd-*/ ; do
+            if [ -f "$d/prd.manifest.yaml" ]; then
+              found=1
+              python3 bin/validate.py "$d"
+            fi
+          done
+          if [ "$found" = "0" ]; then
+            echo "No bundles in this repo — kit self-check covers it."
+          fi

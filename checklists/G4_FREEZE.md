@@ -27,12 +27,15 @@ Creates the **immutable Handoff Release**. Three parts: the cold-session test, t
 - [ ] No secrets anywhere in the bundle; mock sites annotated; build-framework rails clean
 - [ ] `HANDOFF.md` drafted: run steps work from zero on a clean machine
 
-## Part 3 — pin and sign
+## Part 3 — pin, sign, seal
 
-- [ ] Release pinned in the manifest: exact prototype commits (or file hash for T1), Figma versions, API contract versions, evidence tag (git tag or folder snapshot)
-- [ ] **PM signs** — intent & behaviour
-- [ ] **Tech lead signs** — feasibility & production delta
-- [ ] **QA signs** — coverage & testability
+- [ ] Release pinned in the manifest: exact prototype commits (file hash for T1), Figma versions, `contracts/` versions
+- [ ] **PM signs** — intent & behaviour · **Tech lead signs** — feasibility & production delta · **QA signs** — coverage & testability. Recorded in the manifest AND as GitHub PR reviews (CODEOWNERS on a protected branch — the GitHub identities are the binding copy)
+- [ ] Run `bin/freeze.py <bundle>` → paste `release_id` / `frozen` / `digest` / `evidence_tag` into the manifest, set `prd.status: frozen`
+- [ ] `bin/validate.py <bundle>` exits 0
+- [ ] Push the protected tag it prints (`git tag -a prd/<slug>/r<N> …`) — that tag is the immutable release
+
+> The cold-session's `open_defects: 0` and a green validator are **gates, not proof**. Sufficiency is the three humans' call — that is what the signatures mean.
 
 | Check | By | Date |
 |---|---|---|

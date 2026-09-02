@@ -59,11 +59,11 @@ stateDiagram-v2
 | E1 | | | |
 
 ## 7. Edge-case register
-Every technical and user edge case. **Demonstrable** = trigger steps reproduce it in the prototype.
+Every technical and user edge case, tied to a coverage-plan scenario ID (S#) from the manifest. **Demonstrable** = trigger steps reproduce it in the prototype. `NOT-DEMONSTRABLE` is allowed only for: (a) third-party-side behaviour, (b) long-horizon/time-based behaviour, (c) non-deterministic race conditions — and each still needs expected behaviour here, a reason in the manifest, and a named production test in HANDOFF.md. Anything else undemonstrable = wrong tier.
 
-| ID | Case | Expected behaviour | Demonstrable? | How to trigger (or rationale if NOT-DEMONSTRABLE) |
+| Scenario | Case | Expected behaviour | Demonstrable? | How to trigger (or category a/b/c + production test if NOT-DEMONSTRABLE) |
 |---|---|---|---|---|
-| X1 | | | yes / NOT-DEMONSTRABLE | |
+| S1 | | | yes / NOT-DEMONSTRABLE | |
 
 ## 8. Data
 <What we store vs. what the partner owns. Table: table name · holds (dev-relevant intent). Mark masked/never-stored fields.>

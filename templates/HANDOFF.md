@@ -18,10 +18,12 @@ handoff:
     tracking_plan: reuse           # verbatim from TRACKING.md
   scenario_ids: coverage_plan      # production tickets/tests reference the manifest's scenario IDs, unchanged
   authoritative_order:             # when sources disagree mid-build
-    - SPEC.md
+    - contracts/ (API shapes + integration behaviour ONLY — pinned versions outrank PM-written assumptions)
+    - SPEC.md (product behaviour — what the user sees and can do)
     - prototype (PROVEN paths)
     - prototype (SIMULATED paths)
     - anything INDICATIVE          # never authoritative
+  release_digest: "<sha256:... from prd.manifest.yaml — tech verifies it matches the prd/* tag before building>"
   requires_reopen:                 # material changes reopen the relevant approval — a NEW release, never a call/chat
     - changing any behaviour defined in SPEC.md
     - dropping/renaming a tracking event

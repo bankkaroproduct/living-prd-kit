@@ -5,10 +5,17 @@
 ## Use
 
 ```
-# in your prototype repo / feature folder
-cp -r living-prd-kit/templates/* .
-cp living-prd-kit/prd.manifest.yaml .
+# generate a complete bundle (manifest + all templates + checklists + patterns + contracts/ + EVIDENCE/)
+bin/new-prd.sh <feature-slug> [target-dir]
+
+# enforce the standard at any point (also runs in CI on every push)
+bin/validate.py prd-<feature-slug>
+
+# at G4: compute the release identity (ID + digest) and the protected-tag command
+bin/freeze.py prd-<feature-slug>
 ```
+
+The schema behind the manifest is `schema/prd.manifest.schema.json`; `.github/CODEOWNERS` binds the three freeze signatures to real GitHub reviews (set branch protection + protect the `prd/*` tag pattern in repo settings). **T1-lite:** a pure-visual T1 mock may drop `MOCKS.md` and `contracts/` — everything else stays.
 
 Then, as the prototype builds (under build-framework rules), fill the bundle **as you go — not at the end**:
 
