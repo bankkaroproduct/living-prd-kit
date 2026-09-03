@@ -23,7 +23,7 @@ handoff:
     - prototype (REAL paths)
     - prototype (MOCKED paths)
     - anything STATIC          # never authoritative
-  release_digest: "<sha256:... from prd.manifest.yaml — tech verifies it matches the prd/* tag before building>"
+  release_digest: "<sha256:... from prd.manifest.yaml — tech verifies it matches the prd/<slug>/r<N> tag before building>"
   requires_reopen:                 # material changes reopen the relevant approval — a NEW release, never a call/chat
     - changing any behaviour defined in SPEC.md
     - dropping/renaming a tracking event

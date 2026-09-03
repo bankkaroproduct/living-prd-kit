@@ -16,6 +16,17 @@ jobs:
       - name: Kit self-check (manifest template + schema + PII/secret scan)
         run: python3 bin/validate.py --kit
 
+  regression-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyyaml jsonschema
+      - name: Run validator/freeze regression tests
+        run: tests/run_tests.sh
+
   bundles:
     runs-on: ubuntu-latest
     steps:
@@ -31,9 +42,13 @@ jobs:
           for d in prd-*/ ; do
             if [ -f "$d/prd.manifest.yaml" ]; then
               found=1
+              echo "::group::$d"
               python3 bin/validate.py "$d"
+              echo "::endgroup::"
             fi
           done
           if [ "$found" = "0" ]; then
-            echo "No bundles in this repo — kit self-check covers it."
+            echo "No prd-* bundles committed to THIS repo — nothing was validated by this job."
+            echo "That's expected for living-prd-kit itself. A real feature bundle's own repo"
+            echo "needs this workflow copied in for its bundle to actually be checked in CI."
           fi

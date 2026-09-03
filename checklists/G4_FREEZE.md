@@ -22,7 +22,7 @@ Creates the **immutable Handoff Release**. Three parts: the cold-session test, t
 - [ ] Every tracking event fires visibly in the collector and matches `TRACKING.md` 1:1 (run the event audit)
 - [ ] Every external dependency REAL, or mocked with a full contract in `MOCKS.md` (incl. failure modes NOT simulated)
 - [ ] Fidelity map covers every surface/call/data path — nothing unlabeled
-- [ ] Data provenance stated + PII-scrubbed (`pii_scrubbed: true` with method; spot-check the dump)
+- [ ] Data provenance stated. If `data.provenance` is `staging-dump`: `pii_scrubbed: true` with method noted, dump spot-checked. If `synthetic` (the default) or `hardcoded`: `pii_scrubbed` correctly stays `null` — nothing to scrub
 - [ ] Every open decision has default + owner + what it blocks
 - [ ] No secrets anywhere in the bundle; mock sites annotated; build-framework rails clean
 - [ ] `HANDOFF.md` drafted: run steps work from zero on a clean machine

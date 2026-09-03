@@ -1,0 +1,74 @@
+name: three-role-approval
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  pull_request_review:
+    types: [submitted, dismissed]
+
+permissions:
+  pull-requests: read
+  contents: read
+
+jobs:
+  check-three-signatures:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const prNumber = context.payload.pull_request
+              ? context.payload.pull_request.number
+              : (await github.rest.pulls.list({ owner: context.repo.owner, repo: context.repo.repo, head: `${context.repo.owner}:${context.ref.replace('refs/heads/','')}` })).data[0]?.number;
+            if (!prNumber) { core.info('No PR context — nothing to check.'); return; }
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner, repo: context.repo.repo, pull_number: prNumber,
+            });
+            const touchesManifest = files.some(f => f.filename.endsWith('prd.manifest.yaml'));
+            if (!touchesManifest) {
+              core.info('This PR does not touch a prd.manifest.yaml — three-role check does not apply.');
+              return;
+            }
+
+            let codeowners = '';
+            try { codeowners = fs.readFileSync('.github/CODEOWNERS', 'utf8'); }
+            catch (e) { core.setFailed('prd.manifest.yaml changed but .github/CODEOWNERS is missing.'); return; }
+
+            const line = codeowners.split('\n').find(l => l.trim().startsWith('prd.manifest.yaml'));
+            if (!line) {
+              core.setFailed("prd.manifest.yaml changed but CODEOWNERS has no 'prd.manifest.yaml' line naming the three owners.");
+              return;
+            }
+            const required = Array.from(line.matchAll(/@([A-Za-z0-9][A-Za-z0-9-]*)/g)).map(m => m[1]);
+            if (required.length === 0) {
+              core.setFailed("CODEOWNERS' prd.manifest.yaml line has no @handles.");
+              return;
+            }
+            const placeholders = required.filter(h => /-handle$/i.test(h));
+            if (placeholders.length) {
+              core.setFailed(`CODEOWNERS still has placeholder handle(s): ${placeholders.map(h=>'@'+h).join(', ')}. ` +
+                `Replace with real GitHub usernames before this check can pass a freeze PR.`);
+              return;
+            }
+
+            const reviews = await github.paginate(github.rest.pulls.listReviews, {
+              owner: context.repo.owner, repo: context.repo.repo, pull_number: prNumber,
+            });
+            const latestByUser = new Map();
+            for (const r of reviews) {
+              if (!r.user) continue;
+              latestByUser.set(r.user.login.toLowerCase(), r.state);
+            }
+
+            const missing = required.filter(h => latestByUser.get(h.toLowerCase()) !== 'APPROVED');
+            if (missing.length) {
+              core.setFailed(
+                `prd.manifest.yaml changed — this needs an individual APPROVED review from each of ` +
+                `${required.map(h=>'@'+h).join(', ')} (PM + Tech Lead + QA), not just one code owner. ` +
+                `Still missing: ${missing.map(h=>'@'+h).join(', ')}.`
+              );
+              return;
+            }
+            core.info(`All three required reviewers approved: ${required.map(h=>'@'+h).join(', ')}.`);

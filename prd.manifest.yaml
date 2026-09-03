@@ -83,7 +83,7 @@ release:                              # the immutable Handoff Release created at
   prototype_commits: []               # exact SHAs (file hash for single-file T1)
   figma_versions: []                  # snapshot links/ids, or empty
   api_contracts: []                   # contracts/ files + versions pinned, or empty
-  evidence_tag: "pending"             # git tag name; protect the prd/* tag pattern in repo settings
+  evidence_tag: "pending"             # git tag name; protect the prd/** tag pattern in repo settings
   digest: "pending"                   # sha256 over the pinned refs + approvals — computed by bin/freeze.py
   approvals:                          # recorded here AND as GitHub reviews (CODEOWNERS) — GitHub is the enforcing copy
     pm_intent_behaviour: { by: "", date: "pending" }

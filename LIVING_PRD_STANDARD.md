@@ -11,7 +11,8 @@
 > **Golden rule: the PRD is not a document about the product. It is the product, one build early.**
 > Tech receives a running prototype plus a spec bundle. If a behaviour isn't in the bundle, it isn't defined — add it before anyone builds it.
 
-**v1.2 changelog:** hardened per external AI review of the repo (2026-09-02): manifest is now valid YAML with a formal JSON Schema (`schema/`); scaffolder, validator and freeze scripts (`bin/`); CI + CODEOWNERS-enforced approvals + protected `prd/*` release tags; release identity (ID + digest); `contracts/` area with pinned API truth; demonstrability rules for `NOT-DEMONSTRABLE`; synthetic-data default with gated staging dumps; cold-session test clarified as required-not-sufficient; "tech builds against it" wording; T1-lite package; decision provenance in §10.
+**v1.2 changelog:** hardened per external AI review of the repo (2026-09-02): manifest is now valid YAML with a formal JSON Schema (`schema/`); scaffolder, validator and freeze scripts (`bin/`); CI + CODEOWNERS-enforced approvals + protected `prd/**` release tags; release identity (ID + digest); `contracts/` area with pinned API truth; demonstrability rules for `NOT-DEMONSTRABLE`; synthetic-data default with gated staging dumps; cold-session test clarified as required-not-sufficient; "tech builds against it" wording; T1-lite package; decision provenance in §10.
+**v1.2 hardening pass 2 (2026-09-03, second external AI review):** fidelity labels renamed `PROVEN/SIMULATED/INDICATIVE` → `REAL/MOCKED/STATIC` (schema-breaking, no bundle had used the old names yet); validator now fails closed instead of warning (null manifest, missing/broken jsonschema, PII/secret hits are all hard errors now, not warnings); validator scans `.sql`/`.dump` too; validator checks all seven gates at an advanced status, not just G4, and independently recomputes the freeze digest and checks commit/tag references against git instead of trusting the manifest's word; `bin/freeze.py` now runs the validator first, checks G0–G3 and all three approval keys, hashes the bundle's actual file bytes into the digest (not just manifest strings), and auto-increments the release number; schema now requires `pinned_versions`, pins `standard_version`, and requires a real `links.spec` on a `demonstrable` scenario; `prd/*` corrected to `prd/**` everywhere (tags nest two levels); README's T1-lite/seven-artifacts contradiction fixed; G4 checklist's `pii_scrubbed` line scoped to staging-dump bundles only; STATIC's definition split "copy is real and reviewable" from "values aren't computed"; T2/T3 scaffold language in §3 and R2 below softened from mandatory to preferred, matching §8's MVP wording and Mohsin's own Feedback Form pilot (built by reusing an existing app, not the slim scaffold).
 **v1.1 changelog:** merged the agreed operating model (Rohan + ChatGPT input): risk-triggered mandate; Alpha Review gate; three-signature immutable freeze; reuse/rebuild/reference-only + scenario IDs; Reconcile gate; Tool v1 scope + owner.
 
 **Contents:** [1 Why](#1-why) · [2 The contract](#2-the-contract--what-a-living-prd-is) · [3 Tiers](#3-tiers--how-much-prototype-to-build) · [4 Roles](#4-roles) · [5 Process & gates](#5-process--gates) · [6 Productionise & reconcile](#6-productionise--reconcile-g5g6) · [7 Living means living](#7-living-means-living) · [8 Tooling](#8-tooling) · [9 Rollout](#9-rollout) · [10 Decisions](#10-decisions--resolved-and-open)
@@ -47,8 +48,8 @@ A Living PRD is a **bundle**: one running prototype + eight supporting artifacts
 > **Fidelity labels — nothing unlabeled.** Every surface, API call, and data path in the prototype carries one of three labels in the manifest:
 > **REAL** — runs against real or staging systems; behaviour is authoritative.
 > **MOCKED** — runs against a mock that honours a written contract in `MOCKS.md`; behaviour is authoritative, numbers may not be.
-> **STATIC** — visual only; do not trust values, copy, or data shapes.
-> Tech plans from REAL, verifies MOCKED contracts against the real service, and treats STATIC as a sketch.
+> **STATIC** — nothing behind it is computed or wired to a real system; do not trust any value, number, or data shape it shows.
+> The literal copy and layout of a STATIC surface is real work and the thing under review (that's what T1 is for) — the label only says the *values* aren't live. Tech plans from REAL, verifies MOCKED contracts against the real service, and treats STATIC copy as approved wording but STATIC data as a sketch.
 
 Why the manifest is YAML and strict: agents downstream don't infer intent — an agent without explicit grammar stalls or freelances (we learned this on the release-operator gating). The manifest is the grammar that lets tech's AI tooling ingest a PRD unattended.
 
@@ -61,8 +62,10 @@ Tier changes **fidelity, not the contract** — the bundle is mandatory at every
 | Tier | What it is | When | Leads | Data | Existing precedent |
 |---|---|---|---|---|---|
 | **T1 Mock** | Single-file or few-file HTML E2E mock, full flow clickable | UI/flow-heavy, no new business logic at risk | Designer (PM supports) | Hardcoded, labelled STATIC | Axis Rewards E2E mock |
-| **T2 Simulation** | Standalone app on the **slim scaffold** (design system + mock layer + event collector preinstalled); mocked APIs; synthetic data | New surface or new logic with no dependency on the existing codebase | PM or Designer | Synthetic / seeded, MOCKED | IDFC Rewards+ variants, edu-loans |
-| **T3 Replica** | The **sanctioned fork** of the production codebase (centrally maintained, regularly refreshed) + PII-scrubbed staging dump; real/staging APIs where cheap, mocks where expensive | Changes to existing product behaviour, data shapes, or API contracts | PM | Staging dump (dated, scrubbed), REAL/MOCKED | `_fe-*` forks, cross-sell service |
+| **T2 Simulation** | Standalone app; mocked APIs; synthetic data. **Preferred** shape is the **slim scaffold** (design system + mock layer + event collector preinstalled) — but reusing an existing standalone build you already made is fine too, if it's noted in `pinned_versions` (`slim_scaffold: "n/a — reusing <what>"`) | New surface or new logic with no dependency on the existing codebase | PM or Designer | Synthetic / seeded, MOCKED | IDFC Rewards+ variants, edu-loans, Feedback Form pilot |
+| **T3 Replica** | A fork of the production codebase (**preferred: the centrally-maintained sanctioned fork**, kept fresh) + PII-scrubbed staging dump; real/staging APIs where cheap, mocks where expensive | Changes to existing product behaviour, data shapes, or API contracts | PM | Staging dump (dated, scrubbed), REAL/MOCKED | `_fe-*` forks, cross-sell service |
+
+"Preferred" is doing real work in that table: it's a default you can depart from with a one-line reason in the manifest, not a hard gate the validator enforces. See R2/R6 in §10 — this wording was tightened from an earlier draft that read as mandatory when the actual decision was a preference.
 
 **Decision rule: pick the lowest tier on which the riskiest assumption can fail.**
 
@@ -88,7 +91,7 @@ Rules that hold at every tier: prototypes use the **production design system** (
 
 Building the prototype **is a build-framework job** — the [build-framework](https://github.com/bankkaroproduct/build-framework) loop (classify → plan + challenge → build → verify → ship behind a gate) and all its safety rails apply. Two rails get sharper here:
 
-> **Synthetic data is the default, everywhere.** A staging dump is the exception and it is **gated**: allowed only through the documented scrub pipeline, with `scrub_pipeline`, `dump_date` and `pii_scrubbed: true` attested in the manifest — the schema rejects a staging-dump bundle without all three, and `pii_scrubbed` has no default. Scrubbed means names, phones, PAN, Aadhaar, addresses → synthetic. Dumps are never committed (`.gitignore` blocks `*.sql`/`*.dump`), the validator scans every bundle for PII and secret patterns, and dumps are deleted when the bundle archives. An Aadhaar number in a prototype repo is a production incident. For mandate-triggered projects, **no real data or live integrations before G2 Alpha Review**.
+> **Synthetic data is the default, everywhere.** A staging dump is the exception and it is **gated**: allowed only through the documented scrub pipeline, with `scrub_pipeline`, `dump_date` and `pii_scrubbed: true` attested in the manifest — the schema rejects a staging-dump bundle without all three, and `pii_scrubbed` has no default. Scrubbed means names, phones, PAN, Aadhaar, addresses → synthetic. Dumps are never committed (`.gitignore` blocks `*.sql`/`*.dump`), the validator scans every bundle for PII and secret patterns **and fails the build on a hit** (`.sql`/`.dump` files included, not just docs and code), and dumps are deleted when the bundle archives. An Aadhaar number in a prototype repo is a production incident. For mandate-triggered projects, **no real data or live integrations before G2 Alpha Review**.
 > **Mocks never ship.** Every mock is annotated `// MOCK — contract in MOCKS.md` at the code site, so nothing simulated can silently ride into the real build.
 
 ---
@@ -109,7 +112,7 @@ The full process is **required** when the work touches any of: regulated data or
 | **G0** Frame | Problem, outcome, scope, context entered; tier call; **mandate check**; non-goals; the plan survived a devil's-advocate pass (right thing? simpler way? riskiest assumption first?) | PM |
 | **G1** Solution | Flow map + `SPEC.md` skeleton: screens and states listed, edge-case register started, tracking plan drafted. Design review for UI-heavy work | PM + Designer |
 | **G2** **Alpha Review** | The **Alpha** — one coherent working journey (mocks + synthetic data fine) with real/mocked/incomplete/undecided identified — reviewed by tech lead (feasibility, integrations, data boundaries, reuse potential) and QA (states, validations, errors, retries, testability). **They may block only on feasibility, safety, or testability.** Output: an **agreed coverage plan** with scenario IDs — not handoff approval | Tech lead + QA |
-| **G3** Bundle complete | Every coverage-plan scenario demonstrable: every state reachable, every validation fires, every event visible in the collector; AI gap-detection pass clean (missing states, inconsistent rules, untracked actions, prototype/spec/API-contract drift) | PM (self-gate) |
+| **G3** Bundle complete | Every coverage-plan scenario demonstrable **or** `NOT-DEMONSTRABLE` per §5's rules below: every reachable state hits, every validation fires, every event visible in the collector; AI gap-detection pass clean (missing states, inconsistent rules, untracked actions, prototype/spec/API-contract drift) | PM (self-gate) |
 | **G4** **Freeze & approve** | Definition of Done below + cold-session test passed → an **immutable Handoff Release**: `release_id` + `sha256` digest over the pinned refs (`bin/freeze.py`), exact prototype commits, Figma versions, `contracts/` versions and test evidence pinned, sealed with a protected `prd/<slug>/r<N>` git tag. Three signatures — **PM** (intent & behaviour) · **Tech lead** (feasibility & production delta) · **QA** (coverage & testability) — recorded in the manifest **and enforced as GitHub reviews via CODEOWNERS on a protected branch** (GitHub identities are the binding copy). Changes after freeze create a new release | PM + Tech lead + QA |
 | **G5** Productionise | See §6 | Tech lead |
 | **G6** Reconcile | See §6 | QA + PM |
@@ -141,7 +144,7 @@ Default: every coverage-plan scenario is **demonstrable** — trigger steps repr
 - [ ] Cold-session test passed (`open_defects: 0`); transcript in `EVIDENCE/` — required, not sufficient
 - [ ] `NOT-DEMONSTRABLE` scenarios all fall in categories (a)–(c) above, each with reason + production test named
 - [ ] `contracts/` pinned: exact OpenAPI/schema versions listed in `release.api_contracts`
-- [ ] Release identity: `release_id` + digest from `bin/freeze.py`; protected `prd/*` tag pushed
+- [ ] Release identity: `release_id` + digest from `bin/freeze.py`; protected `prd/**` tag pushed
 - [ ] `bin/validate.py <bundle>` exits 0
 - [ ] No secrets anywhere in the bundle; build-framework safety rails clean
 
@@ -188,7 +191,9 @@ The bundle stays the single source of truth **through the build**, not just at h
 | `bin/new-prd.sh <slug>` | Generates a complete bundle: manifest (slug filled), all templates, checklists, patterns, `contracts/`, `EVIDENCE/`, `.gitignore` |
 | `bin/validate.py <bundle>` | Enforces the standard: YAML + JSON Schema, unfilled placeholders, artifact existence, scenario/event/mock/evidence cross-references, gate consistency, PII + secret scan. Runs in CI (`.github/workflows/validate.yml`) on every push |
 | `bin/freeze.py <bundle>` | Computes the release identity — `release_id` + sha256 digest over pinned commits/Figma/contracts/approvals — and prints the protected-tag command |
-| `.github/CODEOWNERS` | Binds the three signatures to real GitHub identities via required reviews on a protected branch; `prd/*` tags protected in repo settings |
+| `.github/CODEOWNERS` | Binds the three signatures to real GitHub identities via required reviews on a protected branch; `prd/**` tags protected in repo settings |
+| `.github/workflows/three-role-approval.yml` | CODEOWNERS alone only guarantees one approval from *someone* on the list — this reads the three handles off CODEOWNERS' `prd.manifest.yaml` line and fails the PR check unless each has individually approved |
+| `tests/run_tests.sh` | Regression tests for `validate.py`/`freeze.py` themselves: a deliberately-broken fixture must fail with the right errors, a genuinely complete one must pass clean. Runs in CI on every push |
 | build-framework | Governs the construction of the prototype itself (roles, loop, rails) — **pin the ref used** in `pinned_versions` |
 | Event collector pattern | ~40 lines of JS: on-screen event panel + `window.__events`. Drops into every tier including single-file mocks — this is how "events fire visibly" stays cheap |
 | Mock pattern | Standard shape for mocking expensive services (SMS, payment, KYC): visible mock banner, logged calls, contract file cross-linked |
@@ -225,7 +230,7 @@ CashKaro-owned. **Built by the PM team as pilot #3, under this standard** — th
 | # | Decision | Outcome | Decided by |
 |---|---|---|---|
 | R1 | Process model | Merged operating model: risk-triggered mandate, Alpha Review, three-signature immutable freeze, reuse/rebuild/reference-only + scenario IDs, Reconcile | Mohsin, 2026-09-02 (option round; ChatGPT/Rohan input merged) |
-| R2 | Preferred scaffold | Tiered: slim standalone harness (design system + mock layer + collector preinstalled) for T2; one centrally-maintained, regularly-refreshed **sanctioned fork** for T3 | Mohsin, 2026-09-02 (option round) |
+| R2 | Preferred scaffold | Tiered *preference*, not a mandate: slim standalone harness (design system + mock layer + collector preinstalled) for T2; one centrally-maintained, regularly-refreshed sanctioned fork for T3. Reusing an existing build is an accepted alternative (noted in `pinned_versions`) | Mohsin, 2026-09-02 (option round) — reworded 2026-09-03, see Open #6 |
 | R3 | Tool v1 owner | PM team builds it as pilot #3 under this standard; engineering owner named at its Alpha Review | Mohsin, 2026-09-02 (option round; reaffirmed after external review) |
 | R4 | Tier count | Three tiers; external "T4" = our T3 | Mohsin, 2026-09-02 |
 | R5 | Data policy | Synthetic default; staging dumps gated behind a documented scrub pipeline attested in the manifest; `pii_scrubbed` has no default | Mohsin, 2026-09-02 (after external review) |
@@ -241,3 +246,4 @@ CashKaro-owned. **Built by the PM team as pilot #3, under this standard** — th
 | 3 | Backend-only work (no UI) | Same contract; "prototype" = runnable service + seeded calls; T3 by default |
 | 4 | Design-system pack maintainer for the slim scaffold | Design team; generic AI styling fails G1 |
 | 5 | Pilot A and Pilot B names | From roadmap — Mohsin + Rohan to name |
+| 6 | Does R2's "preferred scaffold" and R6's "manual pins in MVP" fully match what was actually chosen — "preferred scaffold plus external imports" and GitHub/Figma/API/test-runs as v1 connections? | R2's wording above was already loosened from a mandatory reading on 2026-09-03 (second external review). R6 is unchanged pending Mohsin confirming whether v1 needs live Figma/API ingestion or manual pins are still right |

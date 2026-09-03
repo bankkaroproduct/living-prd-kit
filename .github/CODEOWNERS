@@ -1,10 +1,23 @@
-# Binds the three freeze signatures to real GitHub identities.
-# Replace placeholders, then in repo settings: require Code Owner reviews on main,
-# and protect the tag pattern prd/* (that tag is the immutable release).
+# CODEOWNERS — makes the three freeze signatures enforceable through GitHub itself.
+# Replace the placeholders with real GitHub handles/teams, then in repo settings:
+#   1. Protect the main branch: require pull-request reviews from Code Owners.
+#   2. Protect the tag pattern  prd/**  (Settings -> Rules -> Rulesets -> New tag ruleset;
+#      '**' matters, releases tag as prd/<slug>/r<N>, two levels deep) so release tags
+#      can't be moved or deleted — that tag is the immutable Handoff Release.
+# With this, a freeze PR cannot merge until PM + Tech Lead + QA have all approved
+# with their own GitHub identities, commit-bound — no editable names in YAML.
+
+# Everything needs the PM (bundle owner)
 *                     @pm-handle
+
+# Behaviour + handoff need the Tech Lead
 SPEC.md               @pm-handle @tech-lead-handle
-HANDOFF.md            @pm-handle @tech-lead-handle
-contracts/            @tech-lead-handle
-EVIDENCE/             @pm-handle @qa-handle
-TRACKING.md           @pm-handle @qa-handle
-prd.manifest.yaml     @pm-handle @tech-lead-handle @qa-handle
+HANDOFF.md             @pm-handle @tech-lead-handle
+contracts/             @tech-lead-handle
+
+# Coverage, evidence and reconcile need QA
+EVIDENCE/              @pm-handle @qa-handle
+TRACKING.md            @pm-handle @qa-handle
+
+# The manifest carries the release block — all three sign
+prd.manifest.yaml      @pm-handle @tech-lead-handle @qa-handle

@@ -22,7 +22,7 @@ That's the whole process. Instead of writing a document that describes the featu
 
 ## The one honesty rule
 
-Every part of the draft is marked **REAL** (talks to actual systems — trust it), **MOCKED** (a stand-in with its behaviour written down — trust the behaviour, not the numbers), or **STATIC** (a picture that computes nothing — trust the layout, nothing else). Tech never has to guess which is which.
+Every part of the draft is marked **REAL** (talks to actual systems — trust it), **MOCKED** (a stand-in with its behaviour written down — trust the behaviour, not the numbers), or **STATIC** (nothing behind it is wired up — trust the words and the layout, since that's what's being reviewed, but not any number or value it shows). Tech never has to guess which is which.
 
 One safety rule that never bends: staging data gets personal details scrubbed **before** it touches a draft. An Aadhaar number in a prototype is treated as a production incident.
 

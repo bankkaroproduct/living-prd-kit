@@ -3,7 +3,7 @@
   "$id": "https://github.com/bankkaroproduct/living-prd-kit/schema/prd.manifest.schema.json",
   "title": "Living PRD manifest (standard v1.2)",
   "type": "object",
-  "required": ["prd", "mandate", "prototype", "data", "fidelity", "coverage_plan", "artifacts", "gates", "release", "cold_session", "changelog"],
+  "required": ["prd", "pinned_versions", "mandate", "prototype", "data", "fidelity", "coverage_plan", "artifacts", "gates", "release", "cold_session", "changelog"],
   "additionalProperties": false,
   "properties": {
     "prd": {
@@ -11,15 +11,15 @@
       "required": ["id", "title", "owner", "tech_lead", "qa", "tier", "status", "standard_version"],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "string" },
-        "title": { "type": "string" },
+        "id": { "type": "string", "anyOf": [ { "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" }, { "pattern": "^<.*>$" } ] },
+        "title": { "type": "string", "minLength": 1 },
         "owner": { "type": "string" },
         "tech_lead": { "type": "string" },
         "qa": { "type": "string" },
         "designer": { "type": "string" },
         "tier": { "enum": ["T1", "T2", "T3"] },
         "status": { "enum": ["framing", "building", "alpha-review", "bundle-assembly", "frozen", "in-build", "reconciled", "shipped", "archived"] },
-        "standard_version": { "type": "string" }
+        "standard_version": { "enum": ["1.2"] }
       }
     },
     "pinned_versions": {
@@ -129,6 +129,18 @@
                 "then": {
                   "properties": { "not_demonstrable_reason": { "not": { "enum": ["n/a", "", "pending"] } } },
                   "required": ["not_demonstrable_reason"]
+                }
+              },
+              {
+                "if": { "properties": { "status": { "const": "demonstrable" } } },
+                "then": {
+                  "required": ["links"],
+                  "properties": {
+                    "links": {
+                      "required": ["spec"],
+                      "properties": { "spec": { "type": "string", "not": { "enum": ["", "pending"] }, "minLength": 1 } }
+                    }
+                  }
                 }
               }
             ]
