@@ -20,9 +20,9 @@ handoff:
   authoritative_order:             # when sources disagree mid-build
     - contracts/ (API shapes + integration behaviour ONLY — pinned versions outrank PM-written assumptions)
     - SPEC.md (product behaviour — what the user sees and can do)
-    - prototype (PROVEN paths)
-    - prototype (SIMULATED paths)
-    - anything INDICATIVE          # never authoritative
+    - prototype (REAL paths)
+    - prototype (MOCKED paths)
+    - anything STATIC          # never authoritative
   release_digest: "<sha256:... from prd.manifest.yaml — tech verifies it matches the prd/* tag before building>"
   requires_reopen:                 # material changes reopen the relevant approval — a NEW release, never a call/chat
     - changing any behaviour defined in SPEC.md
@@ -34,7 +34,7 @@ handoff:
 <Exact steps from zero: clone/open → env (names only, no secrets) → seed → run → the demo path. A cold session must succeed from these lines alone.>
 
 ## What to trust (fidelity summary)
-<Three short lists from the manifest fidelity map: PROVEN paths · SIMULATED paths (with their mock IDs) · INDICATIVE paths. One line each.>
+<Three short lists from the manifest fidelity map: REAL paths · MOCKED paths (with their mock IDs) · STATIC paths. One line each.>
 
 ## What's proven vs. indicative — the numbers
 <Where the prototype's displayed values are real (staging data, dated) vs. illustrative. Stops tech from reverse-engineering fake numbers.>

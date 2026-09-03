@@ -38,10 +38,10 @@ data:
   pii_scrubbed: null                  # set true ONLY after the pipeline run is attested; there is no safe default
 
 # Fidelity map — every surface, API call, and data path. Nothing unlabeled.
-# PROVEN = real/staging systems, authoritative | SIMULATED = mock with contract in MOCKS.md | INDICATIVE = visual only
+# REAL = real/staging systems, authoritative | MOCKED = mock with contract in MOCKS.md | STATIC = visual only
 fidelity:
   - path: "<screen/flow/API — e.g. plan-configurator pricing>"
-    label: INDICATIVE                 # PROVEN | SIMULATED | INDICATIVE
+    label: STATIC                 # REAL | MOCKED | STATIC
     note: "<one line>"
 
 coverage_plan:                        # agreed at G2 Alpha Review; scenario IDs persist through production and reconcile

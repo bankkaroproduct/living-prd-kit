@@ -35,7 +35,7 @@ Then, as the prototype builds (under build-framework rules), fill the bundle **a
 
 | Risk under test | Tier | Shape |
 |---|---|---|
-| Layout, copy, flow comprehension | **T1 Mock** | Single-file HTML E2E mock, design-led, data INDICATIVE |
+| Layout, copy, flow comprehension | **T1 Mock** | Single-file HTML E2E mock, design-led, data STATIC |
 | New flow's logic, states, validations | **T2 Simulation** | Standalone app, mocked APIs, synthetic data |
 | Existing system behaviour, data shapes, API contracts | **T3 Replica** | Codebase fork + scrubbed staging dump; mocks only where expensive |
 
@@ -57,7 +57,7 @@ prd-<feature>/
 
 ## Rules that save you later
 
-- **Nothing unlabeled**: every surface/call/data path is PROVEN, SIMULATED, or INDICATIVE in the manifest.
+- **Nothing unlabeled**: every surface/call/data path is REAL, MOCKED, or STATIC in the manifest.
 - **Staging dumps are Real**: scrub PII before the dump leaves staging; date it in the manifest; never commit it.
 - **Mocks never ship**: annotate `// MOCK — contract in MOCKS.md` at every mock site.
 - **If it isn't in the bundle, it isn't defined.**

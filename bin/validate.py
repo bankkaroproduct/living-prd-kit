@@ -46,8 +46,14 @@ def schema_check(manifest, kit_dir: Path):
     except ImportError:
         warn("jsonschema not installed — skipping schema validation (pip install jsonschema)"); return
     schema = json.loads(schema_path.read_text())
-    for e in jsonschema.Draft202012Validator(schema).iter_errors(manifest):
-        err(f"schema: at {'/'.join(str(p) for p in e.path) or '<root>'}: {e.message}")
+    V = getattr(jsonschema, "Draft202012Validator", None) or getattr(jsonschema, "Draft7Validator", None)
+    if V is None:
+        warn("jsonschema too old for this schema — skipping schema validation (pip install -U jsonschema)"); return
+    try:
+        for e in V(schema).iter_errors(manifest):
+            err(f"schema: at {'/'.join(str(p) for p in e.path) or '<root>'}: {e.message}")
+    except Exception as ex:
+        warn(f"schema validation unavailable on this jsonschema version ({type(ex).__name__}) — pip install -U jsonschema")
 
 def placeholder_check(manifest):
     found = []

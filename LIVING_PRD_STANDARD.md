@@ -45,10 +45,10 @@ A Living PRD is a **bundle**: one running prototype + eight supporting artifacts
 | 8 | API contracts | `contracts/` | Pinned OpenAPI/JSON Schema + fixtures, exact versions. **For API shapes and integration behaviour, these outrank `SPEC.md` and any PM-written assumption**; for product behaviour, `SPEC.md` outranks everything. A conflict between the two is a same-day-fix defect |
 
 > **Fidelity labels — nothing unlabeled.** Every surface, API call, and data path in the prototype carries one of three labels in the manifest:
-> **PROVEN** — runs against real or staging systems; behaviour is authoritative.
-> **SIMULATED** — runs against a mock that honours a written contract in `MOCKS.md`; behaviour is authoritative, numbers may not be.
-> **INDICATIVE** — visual only; do not trust values, copy, or data shapes.
-> Tech plans from PROVEN, verifies SIMULATED contracts against the real service, and treats INDICATIVE as a sketch.
+> **REAL** — runs against real or staging systems; behaviour is authoritative.
+> **MOCKED** — runs against a mock that honours a written contract in `MOCKS.md`; behaviour is authoritative, numbers may not be.
+> **STATIC** — visual only; do not trust values, copy, or data shapes.
+> Tech plans from REAL, verifies MOCKED contracts against the real service, and treats STATIC as a sketch.
 
 Why the manifest is YAML and strict: agents downstream don't infer intent — an agent without explicit grammar stalls or freelances (we learned this on the release-operator gating). The manifest is the grammar that lets tech's AI tooling ingest a PRD unattended.
 
@@ -60,9 +60,9 @@ Tier changes **fidelity, not the contract** — the bundle is mandatory at every
 
 | Tier | What it is | When | Leads | Data | Existing precedent |
 |---|---|---|---|---|---|
-| **T1 Mock** | Single-file or few-file HTML E2E mock, full flow clickable | UI/flow-heavy, no new business logic at risk | Designer (PM supports) | Hardcoded, labelled INDICATIVE | Axis Rewards E2E mock |
-| **T2 Simulation** | Standalone app on the **slim scaffold** (design system + mock layer + event collector preinstalled); mocked APIs; synthetic data | New surface or new logic with no dependency on the existing codebase | PM or Designer | Synthetic / seeded, SIMULATED | IDFC Rewards+ variants, edu-loans |
-| **T3 Replica** | The **sanctioned fork** of the production codebase (centrally maintained, regularly refreshed) + PII-scrubbed staging dump; real/staging APIs where cheap, mocks where expensive | Changes to existing product behaviour, data shapes, or API contracts | PM | Staging dump (dated, scrubbed), PROVEN/SIMULATED | `_fe-*` forks, cross-sell service |
+| **T1 Mock** | Single-file or few-file HTML E2E mock, full flow clickable | UI/flow-heavy, no new business logic at risk | Designer (PM supports) | Hardcoded, labelled STATIC | Axis Rewards E2E mock |
+| **T2 Simulation** | Standalone app on the **slim scaffold** (design system + mock layer + event collector preinstalled); mocked APIs; synthetic data | New surface or new logic with no dependency on the existing codebase | PM or Designer | Synthetic / seeded, MOCKED | IDFC Rewards+ variants, edu-loans |
+| **T3 Replica** | The **sanctioned fork** of the production codebase (centrally maintained, regularly refreshed) + PII-scrubbed staging dump; real/staging APIs where cheap, mocks where expensive | Changes to existing product behaviour, data shapes, or API contracts | PM | Staging dump (dated, scrubbed), REAL/MOCKED | `_fe-*` forks, cross-sell service |
 
 **Decision rule: pick the lowest tier on which the riskiest assumption can fail.**
 
@@ -135,7 +135,7 @@ Default: every coverage-plan scenario is **demonstrable** — trigger steps repr
 - [ ] Every field validation fires in the prototype **and** appears in `SPEC.md` with exact error copy
 - [ ] Every edge case in the register is demonstrable (trigger steps linked), or marked `NOT-DEMONSTRABLE` with a written rationale
 - [ ] Every tracking event fires visibly in the collector and matches `TRACKING.md` 1:1 — names, triggers, properties
-- [ ] Every external dependency is PROVEN, or mocked with its contract in `MOCKS.md`
+- [ ] Every external dependency is REAL, or mocked with its contract in `MOCKS.md`
 - [ ] Data provenance stated in the manifest (staging dump + date / synthetic / hardcoded) and PII-scrubbed
 - [ ] Every open decision has a default, an owner, and what it blocks
 - [ ] Cold-session test passed (`open_defects: 0`); transcript in `EVIDENCE/` — required, not sufficient

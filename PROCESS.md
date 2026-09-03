@@ -6,7 +6,7 @@ That's the whole process. Instead of writing a document that describes the featu
 
 ## The seven steps
 
-**1. Pitch it** — *PM, half a day.* Write down the problem, what success looks like, and what you're **not** doing. Decide how real the draft needs to be: a **clickable picture** (look-and-feel work — carries a lighter folder, since there's nothing faked to document), a **working fake** (new flows, made-up data and APIs), or a **copy of the real product** (changes to existing behaviour, built on the shared fork). Drafts use **made-up data by default**; real staging data is allowed only after it has been through the approved scrubbing pipeline, recorded on the cover sheet. If the feature touches **money, KYC, personal data, complex integrations, or another team** — the full process is compulsory. Anything else, skip the ceremony and just build.
+**1. Pitch it** — *PM, half a day.* Write down the problem, what success looks like, and what you're **not** doing. Decide how real the draft needs to be: a **clickable picture** (look-and-feel work — carries a lighter folder, since there's nothing faked to document), a **working fake** (new flows, made-up data and APIs), or a **copy of the real product** (changes to existing behaviour, built on the shared fork). Data in the draft: **made-up data — always fine · cleaned staging data — only via the approved scrubbing pipeline · raw customer data — never.** If the feature touches **money, KYC, personal data, complex integrations, or another team** — the full process is compulsory. Anything else, skip the ceremony and just build.
 
 **2. Sketch the flow** — *PM + Designer, a day.* List the screens, what the user can do on each, and what can go wrong. Designer leads when it's a visual project. This list becomes your to-do for the draft.
 
@@ -22,7 +22,7 @@ That's the whole process. Instead of writing a document that describes the featu
 
 ## The one honesty rule
 
-Every part of the draft is marked **REAL** (talks to actual systems — trust it), **FAKED** (a stand-in with its behaviour written down — trust the behaviour, not the numbers), or **JUST A PICTURE** (don't trust anything about it). Tech never has to guess which is which.
+Every part of the draft is marked **REAL** (talks to actual systems — trust it), **MOCKED** (a stand-in with its behaviour written down — trust the behaviour, not the numbers), or **STATIC** (a picture that computes nothing — trust the layout, nothing else). Tech never has to guess which is which.
 
 One safety rule that never bends: staging data gets personal details scrubbed **before** it touches a draft. An Aadhaar number in a prototype is treated as a production incident.
 
@@ -52,4 +52,4 @@ One command creates the whole folder — `bin/new-prd.sh <feature-name>` — and
 
 ## For engineers and AI agents
 
-The strict version — machine-readable cover sheet (`prd.manifest.yaml`), gate IDs G0–G6, fidelity labels (`PROVEN/SIMULATED/INDICATIVE` = real/faked/picture), the freeze-release format, checklists — is `LIVING_PRD_STANDARD.md` in this kit. It exists so tech's AI tooling can consume a PRD without a meeting. **Humans never need to read it.**
+The strict version — machine-readable cover sheet (`prd.manifest.yaml`), gate IDs G0–G6, the `REAL / MOCKED / STATIC` labels as schema enums, the freeze-release format, checklists — is `LIVING_PRD_STANDARD.md` in this kit. It exists so tech's AI tooling can consume a PRD without a meeting. **Humans never need to read it.**

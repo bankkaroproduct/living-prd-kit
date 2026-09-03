@@ -20,7 +20,7 @@ Creates the **immutable Handoff Release**. Three parts: the cold-session test, t
 - [ ] Every field validation fires in the prototype **and** appears in `SPEC.md` with exact error copy
 - [ ] Every edge case in the register: demonstrable with linked trigger steps, or `NOT-DEMONSTRABLE` + rationale
 - [ ] Every tracking event fires visibly in the collector and matches `TRACKING.md` 1:1 (run the event audit)
-- [ ] Every external dependency PROVEN, or mocked with a full contract in `MOCKS.md` (incl. failure modes NOT simulated)
+- [ ] Every external dependency REAL, or mocked with a full contract in `MOCKS.md` (incl. failure modes NOT simulated)
 - [ ] Fidelity map covers every surface/call/data path — nothing unlabeled
 - [ ] Data provenance stated + PII-scrubbed (`pii_scrubbed: true` with method; spot-check the dump)
 - [ ] Every open decision has default + owner + what it blocks
