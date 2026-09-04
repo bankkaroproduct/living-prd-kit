@@ -188,7 +188,7 @@ function normalizeCheckClause(value) {
   }
 
   function charsetLiteralOffset() {
-    const introducer = /^_[A-Za-z0-9]+/.exec(input.slice(index));
+    const introducer = /^_utf8mb4/i.exec(input.slice(index));
     if (!introducer) return null;
     let offset = index + introducer[0].length;
     while (offset < input.length && /\s/.test(input[offset])) offset += 1;

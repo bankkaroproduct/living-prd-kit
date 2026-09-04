@@ -62,6 +62,7 @@ function metadataConnection(drift = {}) {
           CHECK_CLAUSE: RAW_CHECKS[check[1]],
         }));
         if (drift.checkClause) rows.find((row) => row.CONSTRAINT_NAME === "chk_projects_row_version").CHECK_CLAUSE = "row_version >= 0";
+        if (drift.statusCheckClause) rows.find((row) => row.CONSTRAINT_NAME === "chk_projects_status").CHECK_CLAUSE = drift.statusCheckClause;
         if (drift.enforced) rows.find((row) => row.CONSTRAINT_NAME === "chk_projects_status").ENFORCED = "NO";
         return [rows, []];
       }
@@ -97,9 +98,21 @@ describe("schema verifier", () => {
     assert.notEqual(normalizeCheckClause("(a OR b) AND c"), normalizeCheckClause("a OR (b AND c)"));
   });
 
-  test("preserves charset-like suffixes inside literal values", () => {
-    const statusDrift = RAW_CHECKS.chk_projects_status.replace("framing'", "framing_evil'");
-    assert.notEqual(normalizeCheckClause(statusDrift), normalizeCheckClause(RAW_CHECKS.chk_projects_status));
+  test("preserves literal contents and rejects uncertified charset introducers", async () => {
+    const statusDrifts = [
+      RAW_CHECKS.chk_projects_status.replace("framing'", "framing_evil'"),
+      RAW_CHECKS.chk_projects_status.replace("framing'", "framing`'"),
+      RAW_CHECKS.chk_projects_status.replace("framing'", "framing\\'"),
+    ];
+    for (const statusDrift of statusDrifts) {
+      assert.notEqual(normalizeCheckClause(statusDrift), normalizeCheckClause(RAW_CHECKS.chk_projects_status));
+      await assert.rejects(verifySchema(metadataConnection({ statusCheckClause: statusDrift })),
+        (error) => error.code === "SCHEMA_CHK_PROJECTS_STATUS_MISMATCH");
+    }
+    const charsetDrift = RAW_CHECKS.chk_projects_status.replace("_utf8mb4'framing'", "_binary'framing'");
+    assert.throws(() => normalizeCheckClause(charsetDrift), (error) => error.code === "SCHEMA_CHECK_MISMATCH");
+    await assert.rejects(verifySchema(metadataConnection({ statusCheckClause: charsetDrift })),
+      (error) => String(error.code).startsWith("SCHEMA_CHK_PROJECTS_STATUS_PARSE_"));
 
     const escapedExpected = "regexp_like(`id`,_utf8mb4\\'^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$\\',_utf8mb4\\'c\\')";
     const escapedDrift = escapedExpected.replace("?$\\'", "?$_evil\\'");

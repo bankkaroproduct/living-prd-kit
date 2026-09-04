@@ -427,7 +427,17 @@ function validateProjectData(data) {
       !Number.isSafeInteger(review.stranger.defects) || review.stranger.defects < -1 || review.stranger.defects > 10_000) {
     return "data.review.stranger is invalid";
   }
+  const hasStrangerRun = review.stranger.ran !== "";
+  if ((!hasStrangerRun && (review.stranger.defects !== -1 || review.stranger.report !== "")) ||
+      (hasStrangerRun && (!completedGateMarker(review.stranger.ran) || review.stranger.defects < 0 ||
+        !review.stranger.report.trim()))) {
+    return "data.review.stranger is invalid";
+  }
   if (!isPlainObject(review.signatures) || boundedStrings(review.signatures, [["pm", 255], ["tech", 255], ["qa", 255]])) {
+    return "data.review.signatures is invalid";
+  }
+  if ([review.signatures.pm, review.signatures.tech, review.signatures.qa]
+      .some((signature) => signature !== "" && !signature.trim())) {
     return "data.review.signatures is invalid";
   }
   if (review.digest !== undefined && !validBoundedString(review.digest, 71)) {
@@ -526,7 +536,8 @@ function freezePrerequisitesComplete(data) {
     meta.entry.trim() && meta.run.trim() && dataRuleClean &&
     review.objections.every((objection) => objection.resolved) &&
     review.dodManual.secrets && review.dodManual.runzero &&
-    review.stranger.ran && review.stranger.defects === 0 &&
+    completedGateMarker(review.stranger.ran) && review.stranger.defects === 0 &&
+    review.stranger.report.trim() &&
     review.signatures.pm && review.signatures.tech && review.signatures.qa
   );
 }
@@ -544,6 +555,56 @@ function reconciliationComplete(data) {
   );
 }
 
+function signaturesEmpty(data) {
+  const signatures = data.review.signatures;
+  return signatures.pm === "" && signatures.tech === "" && signatures.qa === "";
+}
+
+function strangerEvidenceEmpty(data) {
+  const stranger = data.review.stranger;
+  const manual = data.review.dodManual;
+  return stranger.ran === "" && stranger.defects === -1 && stranger.report === "" &&
+    manual.secrets === false && manual.runzero === false && signaturesEmpty(data);
+}
+
+function transitionClone(data) {
+  return JSON.parse(JSON.stringify(data));
+}
+
+function signatureCore(data) {
+  const snapshot = transitionClone(data);
+  snapshot.meta.g4 = "";
+  snapshot.meta.g6 = "";
+  snapshot.review.signatures = { pm: "", tech: "", qa: "" };
+  snapshot.review.digest = "";
+  snapshot.review.reconcile = {};
+  snapshot.review.eventAudit = false;
+  snapshot.review.mocksVerified = false;
+  return snapshot;
+}
+
+function strangerCore(data) {
+  const snapshot = signatureCore(data);
+  snapshot.review.techChecks = { feasibility: false, integrations: false, dataBoundaries: false, reuse: false };
+  snapshot.review.qaChecks = { states: false, validations: false, errorsRetries: false, testability: false };
+  snapshot.review.objections = [];
+  snapshot.review.dodManual = { secrets: false, runzero: false };
+  snapshot.review.stranger = { ran: "", defects: -1, report: "" };
+  return snapshot;
+}
+
+function freezeTransitionCore(data) {
+  const snapshot = transitionClone(data);
+  snapshot.meta.g4 = "";
+  snapshot.meta.g6 = "";
+  snapshot.meta.status = "";
+  snapshot.review.digest = "";
+  snapshot.review.reconcile = {};
+  snapshot.review.eventAudit = false;
+  snapshot.review.mocksVerified = false;
+  return snapshot;
+}
+
 function validateFreezeTransition(currentData, nextData) {
   if (!validGateMarker(nextData.meta.g4) || !validGateMarker(nextData.meta.g6)) {
     return "the freeze gate marker is invalid";
@@ -554,11 +615,27 @@ function validateFreezeTransition(currentData, nextData) {
   const postFreezeStateIsEmpty = nextData.meta.g6 === "" && emptyObject(nextData.review.reconcile) &&
     nextData.review.eventAudit === false && nextData.review.mocksVerified === false;
 
+  if (!currentData) {
+    if (isFrozen || !strangerEvidenceEmpty(nextData)) {
+      return "new projects must start without freeze evidence or signatures";
+    }
+    return null;
+  }
   if (!wasFrozen && !isFrozen) {
+    if (!isDeepStrictEqual(strangerCore(currentData), strangerCore(nextData)) &&
+        !strangerEvidenceEmpty(nextData)) {
+      return "reviewed content changed without clearing freeze evidence and signatures";
+    }
+    if (!isDeepStrictEqual(signatureCore(currentData), signatureCore(nextData)) &&
+        !signaturesEmpty(nextData)) {
+      return "review evidence changed without clearing signatures";
+    }
     return null;
   }
   if (!wasFrozen && isFrozen) {
-    if (nextData.meta.status !== "frozen" || !postFreezeStateIsEmpty ||
+    if (currentData.meta.status !== "building" || nextData.meta.status !== "frozen" ||
+        !isDeepStrictEqual(freezeTransitionCore(currentData), freezeTransitionCore(nextData)) ||
+        !postFreezeStateIsEmpty ||
         !freezePrerequisitesComplete(nextData) ||
         !/^sha256:[0-9a-f]{64}$/.test(digest) || !constantTimeEqual(digest, computeFreezeDigest(nextData))) {
       return "the frozen snapshot fingerprint is invalid";
@@ -578,10 +655,12 @@ function validateFreezeTransition(currentData, nextData) {
 
   const signatures = nextData.review.signatures;
   const stranger = nextData.review.stranger;
+  const manual = nextData.review.dodManual;
   const expectedRelease = Number(currentData.review.releaseNum) + 1;
   if (isFrozen || nextData.meta.status !== "building" || nextData.meta.g4 !== "" ||
       !postFreezeStateIsEmpty || digest || signatures.pm || signatures.tech || signatures.qa ||
       stranger.ran || stranger.defects !== -1 || stranger.report ||
+      manual.secrets || manual.runzero ||
       !Number.isSafeInteger(expectedRelease) || expectedRelease > 10_000 ||
       nextData.review.releaseNum !== expectedRelease) {
     return "editing frozen content requires a clean, incremented release with new evidence and signatures";

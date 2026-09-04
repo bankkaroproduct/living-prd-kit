@@ -229,6 +229,10 @@ describe("HTTP and authentication", () => {
     assert.equal(index.headers.get("x-content-type-options"), "nosniff");
     assert.match(html, /window\.__PRD_STUDIO_CONFIG__=\{"basePath":"\/prd-studio","authMode":"token"\}/);
     assert.match(html, /<input type="password" id="tokenIn"/);
+    assert.match(html, /id="strDefects"/);
+    assert.match(html, /id="strConfirm"/);
+    assert.match(html, /id="recordStr"/);
+    assert.doesNotMatch(html, /id="strReport"|type="file"/);
     assert.doesNotMatch(html, /fonts\.googleapis|localStorage|sessionStorage/);
     assert.doesNotMatch(html, /__CSP_NONCE__|__PRD_STUDIO_RUNTIME_CONFIG__/);
   });
@@ -316,23 +320,37 @@ describe("project API", () => {
   test("binds a frozen snapshot, permits reconciliation only, and requires clean re-versioning", async () => {
     const { origin } = await launch();
     const url = `${origin}/prd-studio/api/projects`;
-    const frozen = project("Frozen snapshot");
-    frozen.meta.entry = "https://prototype.invalid/example";
-    frozen.meta.run = "Open the prototype in a browser";
-    frozen.meta.g4 = "2026-09-04";
-    frozen.meta.status = "frozen";
-    frozen.spec.scenarios[0] = {
+    const draft = project("Frozen snapshot");
+    draft.meta.entry = "https://prototype.invalid/example";
+    draft.meta.run = "Open the prototype in a browser";
+    draft.meta.status = "building";
+    draft.spec.scenarios[0] = {
       id: "S1", name: "Checkout completes", demonstrable: true,
       trigger: "Open checkout and submit", nd: false, ndreason: "",
     };
-    frozen.spec.events = [{ name: "checkout_completed", trigger: "submit", props: "order_id", fires: true }];
-    frozen.spec.fidelity = [{ path: "checkout", label: "REAL", note: "working path" }];
-    frozen.review.coverageAgreed = "2026-09-04";
-    frozen.review.coverageBy = "Tech + QA";
-    frozen.review.dodManual = { secrets: true, runzero: true };
-    frozen.review.stranger = { ran: "2026-09-04", defects: 0, report: "No gaps." };
-    frozen.review.signatures = { pm: "PM", tech: "Tech", qa: "QA" };
+    draft.spec.events = [{ name: "checkout_completed", trigger: "submit", props: "order_id", fires: true }];
+    draft.spec.fidelity = [{ path: "checkout", label: "REAL", note: "working path" }];
+    draft.review.coverageAgreed = "2026-09-04";
+    draft.review.coverageBy = "Tech + QA";
+    const evidence = structuredClone(draft);
+    evidence.review.dodManual = { secrets: true, runzero: true };
+    evidence.review.stranger = { ran: "2026-09-04", defects: 0, report: "Fixed external-test attestation." };
+    const signed = structuredClone(evidence);
+    signed.review.signatures = { pm: "PM", tech: "Tech", qa: "QA" };
+    const frozen = structuredClone(signed);
+    frozen.meta.g4 = "2026-09-04";
+    frozen.meta.status = "frozen";
     frozen.review.digest = computeFreezeDigest(frozen);
+
+    const missingStrangerSummary = structuredClone(frozen);
+    missingStrangerSummary.review.stranger.report = "";
+    missingStrangerSummary.review.digest = computeFreezeDigest(missingStrangerSummary);
+    assert.match(validateProjectData(missingStrangerSummary), /data\.review\.stranger/);
+
+    const invalidStrangerDate = structuredClone(frozen);
+    invalidStrangerDate.review.stranger.ran = "2026-02-30";
+    invalidStrangerDate.review.digest = computeFreezeDigest(invalidStrangerDate);
+    assert.match(validateProjectData(invalidStrangerDate), /data\.review\.stranger/);
 
     const pendingMarker = structuredClone(frozen);
     pendingMarker.meta.g4 = "pending";
@@ -344,6 +362,43 @@ describe("project API", () => {
     impossibleDate.meta.g0 = "2026-02-30";
     assert.match(validateProjectData(impossibleDate), /gate marker is invalid/);
 
+    const whitespaceSignature = structuredClone(draft);
+    whitespaceSignature.review.signatures.pm = " ";
+    assert.match(validateProjectData(whitespaceSignature), /data\.review\.signatures/);
+
+    assert.equal(validateFreezeTransition(null, draft), null);
+    assert.match(validateFreezeTransition(null, evidence), /new projects must start/);
+
+    const staleEvidence = structuredClone(evidence);
+    staleEvidence.meta.title = "Changed after the stranger test";
+    assert.match(validateFreezeTransition(evidence, staleEvidence), /reviewed content changed/);
+    const clearedEvidence = structuredClone(staleEvidence);
+    clearedEvidence.review.dodManual = { secrets: false, runzero: false };
+    clearedEvidence.review.stranger = { ran: "", defects: -1, report: "" };
+    clearedEvidence.review.signatures = { pm: "", tech: "", qa: "" };
+    assert.equal(validateFreezeTransition(evidence, clearedEvidence), null);
+
+    const workflowAfterSigning = structuredClone(signed);
+    workflowAfterSigning.review.techChecks.feasibility = true;
+    assert.match(validateFreezeTransition(signed, workflowAfterSigning), /review evidence changed/);
+    workflowAfterSigning.review.signatures = { pm: "", tech: "", qa: "" };
+    assert.equal(validateFreezeTransition(signed, workflowAfterSigning), null);
+
+    const rerunAfterSigning = structuredClone(signed);
+    rerunAfterSigning.review.stranger.report = "New fixed external-test attestation.";
+    assert.match(validateFreezeTransition(signed, rerunAfterSigning), /review evidence changed/);
+    const firstSignature = structuredClone(evidence);
+    firstSignature.review.signatures.pm = "PM";
+    assert.equal(validateFreezeTransition(evidence, firstSignature), null);
+    const secondSignature = structuredClone(firstSignature);
+    secondSignature.review.signatures.tech = "Tech";
+    assert.equal(validateFreezeTransition(firstSignature, secondSignature), null);
+
+    const changedWhileFreezing = structuredClone(frozen);
+    changedWhileFreezing.meta.title = "Changed in the freeze request";
+    changedWhileFreezing.review.digest = computeFreezeDigest(changedWhileFreezing);
+    assert.match(validateFreezeTransition(signed, changedWhileFreezing), /fingerprint is invalid/);
+
     const shortcutFreeze = project("Shortcut freeze");
     shortcutFreeze.meta.g4 = "2026-09-04";
     shortcutFreeze.meta.status = "frozen";
@@ -351,13 +406,41 @@ describe("project API", () => {
     shortcutFreeze.review.stranger = { ran: "2026-09-04", defects: 0, report: "No gaps." };
     shortcutFreeze.review.signatures = { pm: "PM", tech: "Tech", qa: "QA" };
     shortcutFreeze.review.digest = computeFreezeDigest(shortcutFreeze);
-    assert.match(validateFreezeTransition(null, shortcutFreeze), /fingerprint is invalid/);
+    assert.match(validateFreezeTransition(null, shortcutFreeze), /new projects must start/);
 
     const created = await fetch(url, {
       method: "POST", headers: authHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ id: "frozen-snapshot-a1", slug: "frozen-snapshot", data: frozen }),
+      body: JSON.stringify({ id: "frozen-snapshot-a1", slug: "frozen-snapshot", data: draft }),
     });
     assert.equal(created.status, 201);
+
+    const evidenceResponse = await fetch(`${url}/frozen-snapshot-a1`, {
+      method: "PUT", headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ version: 1, data: evidence }),
+    });
+    assert.deepEqual(await evidenceResponse.json(), { ok: true, version: 2 });
+
+    const rejectedStaleEvidence = await fetch(`${url}/frozen-snapshot-a1`, {
+      method: "PUT", headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ version: 2, data: staleEvidence }),
+    });
+    assert.equal(rejectedStaleEvidence.status, 409);
+    const transitionConflict = await rejectedStaleEvidence.json();
+    assert.match(transitionConflict.error, /reviewed content changed/);
+    assert.equal(transitionConflict.version, undefined);
+    assert.equal(transitionConflict.data, undefined);
+
+    const signedResponse = await fetch(`${url}/frozen-snapshot-a1`, {
+      method: "PUT", headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ version: 2, data: signed }),
+    });
+    assert.deepEqual(await signedResponse.json(), { ok: true, version: 3 });
+
+    const frozenResponse = await fetch(`${url}/frozen-snapshot-a1`, {
+      method: "PUT", headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ version: 3, data: frozen }),
+    });
+    assert.deepEqual(await frozenResponse.json(), { ok: true, version: 4 });
 
     const incompleteReconciliation = structuredClone(frozen);
     incompleteReconciliation.meta.g6 = "2026-09-05";
@@ -365,7 +448,7 @@ describe("project API", () => {
     assert.match(validateProjectData(incompleteReconciliation), /freeze and reconciliation state/);
     const incompleteResponse = await fetch(`${url}/frozen-snapshot-a1`, {
       method: "PUT", headers: authHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ version: 1, data: incompleteReconciliation }),
+      body: JSON.stringify({ version: 4, data: incompleteReconciliation }),
     });
     assert.equal(incompleteResponse.status, 400);
 
@@ -393,7 +476,7 @@ describe("project API", () => {
     reconciled.review.mocksVerified = true;
     const reconciledResponse = await fetch(`${url}/frozen-snapshot-a1`, {
       method: "PUT", headers: authHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ version: 1, data: reconciled }),
+      body: JSON.stringify({ version: 4, data: reconciled }),
     });
     assert.equal(reconciledResponse.status, 200);
 
@@ -401,7 +484,7 @@ describe("project API", () => {
     staleFingerprint.meta.title = "Changed without a new release";
     const rejected = await fetch(`${url}/frozen-snapshot-a1`, {
       method: "PUT", headers: authHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ version: 2, data: staleFingerprint }),
+      body: JSON.stringify({ version: 5, data: staleFingerprint }),
     });
     assert.equal(rejected.status, 409);
     assert.match((await rejected.json()).error, /clean, incremented release/);
@@ -414,15 +497,16 @@ describe("project API", () => {
     revised.review.releaseNum = 2;
     revised.review.signatures = { pm: "", tech: "", qa: "" };
     revised.review.stranger = { ran: "", defects: -1, report: "" };
+    revised.review.dodManual = { secrets: false, runzero: false };
     revised.review.reconcile = {};
     revised.review.eventAudit = false;
     revised.review.mocksVerified = false;
     const accepted = await fetch(`${url}/frozen-snapshot-a1`, {
       method: "PUT", headers: authHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ version: 2, data: revised }),
+      body: JSON.stringify({ version: 5, data: revised }),
     });
     assert.equal(accepted.status, 200);
-    assert.deepEqual(await accepted.json(), { ok: true, version: 3 });
+    assert.deepEqual(await accepted.json(), { ok: true, version: 6 });
   });
 
   test("keeps quote and backslash payloads as prepared-statement values", async () => {

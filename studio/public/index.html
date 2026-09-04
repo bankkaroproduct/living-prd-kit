@@ -36,7 +36,7 @@ h2{font-size:15px;font-weight:600;margin:0 0 4px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin-top:16px}
 .hint{font-size:12.5px;color:var(--muted);margin:2px 0 10px}
 label.f{display:block;font-family:ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:10px 0 3px}
-input[type=text],input[type=password],textarea,select{width:100%;padding:8px 11px;border:1px solid var(--line-strong);border-radius:7px;background:var(--bg);color:var(--ink);font:inherit;font-size:14px}
+input[type=text],input[type=password],input[type=number],textarea,select{width:100%;padding:8px 11px;border:1px solid var(--line-strong);border-radius:7px;background:var(--bg);color:var(--ink);font:inherit;font-size:14px}
 textarea{resize:vertical;min-height:54px}
 input:focus,textarea:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
@@ -196,9 +196,8 @@ function normalize(){
 let P=null;            // current project state {meta,spec,review}
 let projId=null;
 let curTab="pitch";
-let sampleFn=null;     // no server-side AI wired in this self-hosted copy — stranger-test button stays hidden
 let rowVersion=null;   // optimistic-lock version of the currently open project
-let pollTimer=null, saveTimer=null, lastLocalEdit=0, dirty=false;
+let pollTimer=null, saveTimer=null, saveInFlight=null, lastLocalEdit=0, dirty=false;
 const runtimeConfig=Object.freeze(window.__PRD_STUDIO_CONFIG__||{basePath:"",authMode:"token"});
 const basePath=typeof runtimeConfig.basePath==="string"?runtimeConfig.basePath:"";
 const authMode=runtimeConfig.authMode==="trusted_proxy"?"trusted_proxy":"token";
@@ -224,36 +223,68 @@ function completedGateMarker(value){
 function toast(m){const t=$("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1900);}
 function debounceSave(){ dirty=true; lastLocalEdit=Date.now(); clearTimeout(saveTimer); saveTimer=setTimeout(persist,800); }
 async function persist(){
-  if(!P||!projId) return;
+  if(saveInFlight) return saveInFlight;
+  if(!P||!projId||!dirty) return true;
+  clearTimeout(saveTimer); saveTimer=null;
   const dataJson=JSON.stringify(P);
   const versionAtSave=rowVersion;
-  try{
-    const res=await api("/api/projects/"+projId,{method:"PUT",body:`{"version":${JSON.stringify(versionAtSave)},"data":${dataJson}}`});
-    if(res.status===409){
+  const operation=(async()=>{
+    try{
+      const res=await api("/api/projects/"+projId,{method:"PUT",body:`{"version":${JSON.stringify(versionAtSave)},"data":${dataJson}}`});
+      if(res.status===409){
+        const body=await res.json().catch(()=>({}));
+        if(!body||!Number.isSafeInteger(body.version)||body.version<1||!body.data||typeof body.data!=="object"||Array.isArray(body.data)){
+          dirty=true;
+          toast("Server rejected stale review evidence — clear and re-record it after saving edits");
+          return false;
+        }
+        const loadServer=window.confirm("Someone else saved this PRD first. Load the server copy now?\n\nOK loads the server version and discards your unsaved local edits. Cancel keeps your local edits without overwriting theirs; the next save will ask again.");
+        if(loadServer){ P=body.data; rowVersion=body.version; dirty=false; render(); toast("Loaded the latest server copy"); }
+        else { dirty=true; toast("Local edits kept unsaved — no server data was overwritten"); }
+        return false;
+      }
+      if(!res.ok) throw new Error("save failed");
       const body=await res.json();
-      const loadServer=window.confirm("Someone else saved this PRD first. Load the server copy now?\n\nOK loads their version and discards your unsaved local edits. Cancel keeps your local edits without overwriting theirs; the next save will ask again.");
-      if(loadServer){ P=body.data; rowVersion=body.version; dirty=false; render(); toast("Loaded the latest server copy"); }
-      else { dirty=true; toast("Local edits kept unsaved — no server data was overwritten"); }
-      return;
-    }
-    if(!res.ok) throw new Error("save failed");
-    const body=await res.json();
-    rowVersion=body.version;
-    if(P&&JSON.stringify(P)===dataJson) dirty=false;
-  }catch(e){ dirty=true; toast("Couldn't sync — will retry on next edit"); }
+      rowVersion=body.version;
+      if(P&&JSON.stringify(P)===dataJson) dirty=false;
+      return true;
+    }catch(e){ dirty=true; toast("Couldn't sync — will retry on next edit"); return false; }
+  })();
+  const tracked=operation.finally(()=>{if(saveInFlight===tracked)saveInFlight=null;});
+  saveInFlight=tracked;
+  return tracked;
 }
-function invalidateFrozenSnapshot(){
-  if(!completedGateMarker(P?.meta?.g4)) return;
-  P.meta.g4=""; P.meta.g6=""; P.meta.status="building";
-  P.review.digest="";
-  P.review.releaseNum=Math.min(10000,P.review.releaseNum+1);
-  P.review.signatures={pm:"",tech:"",qa:""};
-  P.review.stranger={ran:"",defects:-1,report:""};
-  P.review.reconcile={}; P.review.eventAudit=false; P.review.mocksVerified=false;
-  toast("Frozen snapshot changed — new evidence and signatures required");
+async function flushPendingChanges(){
+  clearTimeout(saveTimer); saveTimer=null;
+  for(let attempt=0;dirty&&attempt<3;attempt+=1){if(!await persist())return false;}
+  return !dirty;
 }
-function mutate(fn,options={}){ if(!options.preserveFreeze) invalidateFrozenSnapshot(); fn(); debounceSave(); render(); }
-function mutateQuiet(fn,options={}){ if(!options.preserveFreeze) invalidateFrozenSnapshot(); fn(); debounceSave(); renderGates(); } /* for text inputs: no full re-render, keep focus */
+function resetStrangerEvidence(){P.review.stranger={ran:"",defects:-1,report:""};}
+function resetSignatures(){P.review.signatures={pm:"",tech:"",qa:""};}
+function prepareMutation(kind="content"){
+  if(completedGateMarker(P?.meta?.g4)){
+    P.meta.g4=""; P.meta.g6=""; P.meta.status="building";
+    P.review.digest="";
+    P.review.releaseNum=Math.min(10000,P.review.releaseNum+1);
+    P.review.dodManual={secrets:false,runzero:false};
+    resetStrangerEvidence(); resetSignatures();
+    P.review.reconcile={}; P.review.eventAudit=false; P.review.mocksVerified=false;
+    toast("Frozen snapshot changed — new evidence and signatures required");
+    return;
+  }
+  if(kind==="content"){
+    const hadEvidence=P.review.stranger.ran||P.review.signatures.pm||P.review.signatures.tech||P.review.signatures.qa||P.review.dodManual.secrets||P.review.dodManual.runzero;
+    P.review.dodManual={secrets:false,runzero:false};
+    resetStrangerEvidence(); resetSignatures();
+    if(hadEvidence)toast("Reviewed content changed — stranger evidence and signatures cleared");
+  }else if(kind==="workflow"||kind==="stranger"){
+    const hadSignatures=P.review.signatures.pm||P.review.signatures.tech||P.review.signatures.qa;
+    resetSignatures();
+    if(hadSignatures)toast("Review evidence changed — signatures cleared");
+  }
+}
+function mutate(fn,options={}){ if(!options.preserveFreeze) prepareMutation(options.kind||"content"); fn(); debounceSave(); render(); }
+function mutateQuiet(fn,options={}){ if(!options.preserveFreeze) prepareMutation(options.kind||"content"); fn(); debounceSave(); renderGates(); } /* for text inputs: no full re-render, keep focus */
 
 /* ============ self-hosted API + team-token gate (replaces window.claude.use) ============ */
 async function api(path,opts){
@@ -528,7 +559,7 @@ function renderReview(body){
     const on=r.techChecks[k];
     const row=el(`<div class="check ${on?"ok":"no"}"><span class="st">${on?"✓":"·"}</span><span style="flex:1">${label}</span></div>`);
     const b=el(`<button class="xs">${on?"Checked":"Check"}</button>`);
-    b.addEventListener("click",()=>mutate(()=>r.techChecks[k]=!r.techChecks[k]));
+    b.addEventListener("click",()=>mutate(()=>r.techChecks[k]=!r.techChecks[k],{kind:"workflow"}));
     row.appendChild(b);
     cTech.querySelector("#tc").appendChild(row);
   }
@@ -539,7 +570,7 @@ function renderReview(body){
     const on=r.qaChecks[k];
     const row=el(`<div class="check ${on?"ok":"no"}"><span class="st">${on?"✓":"·"}</span><span style="flex:1">${label}</span></div>`);
     const b=el(`<button class="xs">${on?"Checked":"Check"}</button>`);
-    b.addEventListener("click",()=>mutate(()=>r.qaChecks[k]=!r.qaChecks[k]));
+    b.addEventListener("click",()=>mutate(()=>r.qaChecks[k]=!r.qaChecks[k],{kind:"workflow"}));
     row.appendChild(b);
     cQA.querySelector("#qc").appendChild(row);
   }
@@ -550,7 +581,7 @@ function renderReview(body){
     const t=OBJ_TYPES.find(x=>x[0]===o.type);
     const row=el(`<div class="check ${o.resolved?"ok":"no"}"><span class="st">${o.resolved?"✓":"!"}</span><span style="flex:1"><b>${escH(t?t[1]:o.type)}</b> — ${escH(o.note)} <span class="note">(${escH(o.by||"reviewer")})</span></span></div>`);
     const b=el(`<button class="xs">${o.resolved?"Reopen":"Resolve"}</button>`);
-    b.addEventListener("click",()=>mutate(()=>o.resolved=!o.resolved));
+    b.addEventListener("click",()=>mutate(()=>o.resolved=!o.resolved,{kind:"workflow"}));
     row.appendChild(b);
     c1.querySelector("#ob").appendChild(row);
   });
@@ -559,7 +590,7 @@ function renderReview(body){
   const noteI=el(`<input type="text" placeholder="what exactly, and why">`);
   const byI=el(`<input type="text" class="xs" style="max-width:130px" placeholder="your name">`);
   const addB=el(`<button class="xs primary">Raise</button>`);
-  addB.addEventListener("click",()=>{ if(!noteI.value.trim()){toast("Say what the objection is");return;} mutate(()=>r.objections.push({type:sel.value,note:noteI.value.trim(),by:byI.value.trim(),resolved:false})); });
+  addB.addEventListener("click",()=>{ if(!noteI.value.trim()){toast("Say what the objection is");return;} mutate(()=>r.objections.push({type:sel.value,note:noteI.value.trim(),by:byI.value.trim(),resolved:false}),{kind:"workflow"}); });
   const nw=c1.querySelector("#newOb"); nw.append(sel,noteI,byI,addB);
 
   const c2=el(`<div class="card"><h2>Coverage plan</h2><p class="hint">The scenario list the finished draft must demonstrate. Add what the PM missed, then agree it — the IDs follow this feature into production tickets and the final match check.</p><div id="cv"></div><div class="btnrow"><button id="addCv">+ Add scenario</button><span style="flex:1"></span><button class="primary" id="agree" ${r.coverageAgreed?"disabled":""}>${r.coverageAgreed?"Agreed "+escH(r.coverageAgreed):"Agree coverage plan"}</button></div></div>`);
@@ -648,21 +679,32 @@ function renderLock(body){
   const m=P.meta,r=P.review;
   const frozen=completedGateMarker(m.g4);
 
-  const c1=el(`<div class="card"><h2>Stranger test</h2><p class="hint"><b>Who: you + tech lead + QA — all three sign below.</b> An AI with no part in the build reads only your bundle and answers "what happens if…?" questions. Anything it can't answer is a gap in the bundle — fix the bundle, not the answer. Required to lock; the decision itself stays human.</p><div id="strOut"></div><div class="btnrow"><button class="primary" id="runStr" ${sampleFn?"":"hidden"}>Run stranger test</button><span class="note" id="strNote">${sampleFn?"Uses your own Claude account; takes ~30–60s.":"No AI is wired into this self-hosted copy — run it yourself: paste the Files tab's contents into any fresh AI chat and ask the questions below."}</span></div></div>`);
+  const c1=el(`<div class="card"><h2>Stranger test</h2><p class="hint"><b>Who: you + tech lead + QA — all three sign below.</b> An AI with no part in the build reads only your bundle and answers "what happens if…?" questions. Anything it can't answer is a gap in the bundle — fix the bundle, not the answer. Required to lock; the decision itself stays human.</p><div id="strOut"></div><ol id="strQuestions" class="note" style="padding-left:20px"></ol><p class="note">No AI is wired into this self-hosted copy. Open the Files tab in a fresh AI chat, ask the five questions above, then record only the count below.</p><label class="f" for="strDefects">Unanswerable questions / gaps</label><input type="number" id="strDefects" min="0" max="10000" step="1" inputmode="numeric" style="max-width:180px"><label class="choice"><input type="checkbox" id="strConfirm"><span><b>I ran a fresh-session test using only the Files bundle</b><br><span class="d">I fixed every reported gap represented by a zero count. I will not paste provider output, secrets, private URLs, or customer-derived data into Studio.</span></span></label><div class="btnrow"><button id="recordStr">Record this test run</button><span class="note">Studio stores only the date, gap count, and this fixed attestation.</span></div></div>`);
   body.appendChild(c1);
+  QBANK.forEach(question=>{ const item=document.createElement("li"); item.textContent=question; c1.querySelector("#strQuestions").appendChild(item); });
   if(r.stranger.ran){
     const ok=r.stranger.defects===0;
     c1.querySelector("#strOut").appendChild(el(`<div class="verdict ${ok?"v-green":"v-amber"}"><span class="pill">${ok?"PASSED":escH(r.stranger.defects)+" GAPS"}</span><span>Last run ${escH(r.stranger.ran)}. ${ok?"The bundle answered everything.":"Fix the gaps below in Spec, then re-run."}</span></div>`));
     if(r.stranger.report) c1.querySelector("#strOut").appendChild(el(`<pre>${escH(r.stranger.report)}</pre>`));
   }
-  c1.querySelector("#runStr")?.addEventListener("click",()=>runStranger(c1.querySelector("#runStr"),c1.querySelector("#strNote")));
+  c1.querySelector("#strDefects").value=r.stranger.defects<0?"":String(r.stranger.defects);
+  c1.querySelector("#recordStr").addEventListener("click",async()=>{
+    const rawDefects=c1.querySelector("#strDefects").value.trim();
+    const defects=/^(?:0|[1-9]\d{0,3}|10000)$/.test(rawDefects)?Number(rawDefects):NaN;
+    if(!Number.isSafeInteger(defects)||defects<0||defects>10000){toast("Enter a whole-number gap count from 0 to 10,000");return;}
+    if(!c1.querySelector("#strConfirm").checked){toast("Confirm that the fresh-session test was run");return;}
+    if(!await flushPendingChanges()){toast("Save current edits before recording evidence");return;}
+    const report=`External fresh-session stranger test attested; ${defects} unanswerable ${defects===1?"question":"questions"}.`;
+    mutate(()=>{r.stranger={ran:today(),defects,report};},{kind:"stranger"});
+    toast(defects===0?"Stranger test recorded as passed":"Gaps recorded — fix the bundle, then re-run");
+  });
 
   const c2=el(`<div class="card"><h2>Ready to lock?</h2><div id="dod"></div><div class="check"><span class="st" id="ms1"></span><span style="flex:1">No secrets or personal data anywhere in the bundle</span><button class="xs" id="mb1"></button></div><div class="check"><span class="st" id="ms2"></span><span style="flex:1">Someone else opened the draft from zero using only "how to open it"</span><button class="xs" id="mb2"></button></div></div>`);
   body.appendChild(c2);
   for(const [label,ok] of dodItems()){
     c2.querySelector("#dod").appendChild(el(`<div class="check ${ok?"ok":"no"}"><span class="st">${ok?"✓":"·"}</span><span>${label}</span></div>`));
   }
-  const setM=(k,st,btn)=>{ const on=r.dodManual[k]; $(st).textContent=on?"✓":"·"; $(st).parentElement.className="check "+(on?"ok":"no"); $(btn).textContent=on?"Confirmed":"Confirm"; $(btn).onclick=()=>mutate(()=>r.dodManual[k]=!r.dodManual[k]); };
+  const setM=(k,st,btn)=>{ const on=r.dodManual[k]; $(st).textContent=on?"✓":"·"; $(st).parentElement.className="check "+(on?"ok":"no"); $(btn).textContent=on?"Confirmed":"Confirm"; $(btn).onclick=()=>mutate(()=>r.dodManual[k]=!r.dodManual[k],{kind:"workflow"}); };
   setM("secrets","ms1","mb1"); setM("runzero","ms2","mb2");
 
   const c3=el(`<div class="card"><h2>Three signatures</h2><p class="hint">Recorded here for the test run. In the repo flow, the binding copy is the three GitHub approvals — this screen mirrors it.</p><div id="sigs"></div></div>`);
@@ -673,7 +715,11 @@ function renderLock(body){
     const row=el(`<div class="sig ${signed?"signed":""}"><span><b>${label}</b> <span class="note">${escH(name||"— name in Pitch")}</span></span></div>`);
     const b=el(`<button class="xs ${signed?"":"primary"}">${signed?"Signed "+escH(signed):"Sign"}</button>`);
     b.disabled=!!signed||frozen&&!signed;
-    b.addEventListener("click",()=>mutate(()=>r.signatures[k]=today()+" "+(name||k)));
+    b.addEventListener("click",async()=>{
+      b.disabled=true;
+      if(!await flushPendingChanges()){b.disabled=false;toast("Save current review evidence before signing");return;}
+      mutate(()=>r.signatures[k]=today()+" "+(name||k),{kind:"signature"});
+    });
     row.appendChild(b);
     c3.querySelector("#sigs").appendChild(row);
   }
@@ -688,6 +734,7 @@ function renderLock(body){
     const b=el(`<button class="primary" ${allDod&&allSig?"":"disabled"}>Freeze this version</button>`);
     b.addEventListener("click",async()=>{
       b.disabled=true;
+      if(!await flushPendingChanges()){b.disabled=false;toast("Save evidence and signatures before freezing");return;}
       const before=canonicalJson(P);
       const snapshot=JSON.parse(before);
       snapshot.meta.g4=today(); snapshot.meta.g6=""; snapshot.meta.status="frozen";
@@ -698,32 +745,13 @@ function renderLock(body){
         if(canonicalJson(P)!==before){ toast("Project changed while freezing — review and try again"); render(); return; }
         snapshot.review.digest="sha256:"+[...new Uint8Array(buf)].map(x=>x.toString(16).padStart(2,"0")).join("");
       }catch(e){ toast("Couldn't fingerprint this snapshot — nothing was frozen"); render(); return; }
-      mutate(()=>{ P=snapshot; });
+      mutate(()=>{ P=snapshot; },{preserveFreeze:true});
       toast("Frozen — files updated");
     });
     c4.querySelector("#fz").appendChild(b);
     c4.querySelector("#fz").appendChild(el(`<p class="note" style="margin-top:8px">${allDod?(allSig?"Everything green — lock it.":"Waiting on signatures."):"Checklist above must be fully green first."}</p>`));
   }
 }
-async function runStranger(btn,note){
-  if(!sampleFn) return;
-  btn.disabled=true; note.textContent="Thinking… (30–60s; first run asks your permission)";
-  const bundle=(genManifest()+"\n\n"+genSpecMd()+"\n\n"+genTrackingMd()).slice(0,45000);
-  const prompt="You are a stranger to this project: you had no part in building it. Below is a Living PRD bundle (cover sheet, behaviour spec, tracking plan). Answer ONLY from the bundle.\n\nQuestions:\n"+QBANK.map((q,i)=>(i+1)+". "+q).join("\n")+"\n\nReply with only JSON: {\"answers\":[{\"q\":number,\"a\":\"short answer citing the bundle section\"}],\"unanswerable\":[\"each question or behaviour the bundle does NOT define, as one short line\"]}. Be strict: if the bundle doesn't define it, it goes in unanswerable.\n\n=== BUNDLE ===\n"+bundle;
-  try{
-    const res=await sampleFn.json(prompt,{cache:false});
-    const un=Array.isArray(res?.unanswerable)?res.unanswerable.filter(x=>String(x).trim()):[];
-    const report=(res?.answers||[]).map(a=>"Q"+a.q+": "+a.a).join("\n")+(un.length?"\n\nUNANSWERABLE (fix the bundle):\n- "+un.map(String).join("\n- "):"\n\nNothing unanswerable.");
-    mutate(()=>{ P.review.stranger={ran:today(),defects:un.length,report}; });
-  }catch(e){
-    if(e&&e.code==="not_granted"){ note.textContent="Claude access declined for this page — run the test by pasting the Files into a fresh chat instead."; btn.hidden=true; }
-    else if(e&&e.code==="rate_limited"){ note.textContent="Rate limited — try again in a minute."; }
-    else if(e&&e.code==="invalid_json"){ note.textContent="Answer wasn't parseable — try again."; }
-    else { note.textContent="Couldn't run it just now — try again, or paste the Files into a fresh chat."; }
-    btn.disabled=false;
-  }
-}
-
 /* ============ 7 · RECONCILE (G6) ============ */
 function renderReconcile(body){
   const r=P.review;
