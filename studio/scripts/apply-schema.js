@@ -144,10 +144,17 @@ function normalizeCheckClause(value) {
   const tokens = [];
   let index = 0;
 
-  function mismatch() {
+  function mismatch(reason = "SYNTAX") {
     const error = new Error("invalid check-clause representation");
     error.code = "SCHEMA_CHECK_MISMATCH";
+    error.parseReason = String(reason).toUpperCase().replace(/[^A-Z0-9]+/g, "_").slice(0, 32);
     throw error;
+  }
+
+  function tokenLabel(token) {
+    if (!token) return "END";
+    if (token.type === "word" && /^[a-z0-9_]{1,24}$/.test(token.value)) return `WORD_${token.value}`;
+    return String(token.type).toUpperCase().replace(/[^A-Z0-9]+/g, "TOKEN").slice(0, 24);
   }
 
   while (index < input.length) {
@@ -200,14 +207,16 @@ function normalizeCheckClause(value) {
       index += 1;
       continue;
     }
-    mismatch();
+    mismatch(`LEX_${character.codePointAt(0).toString(16)}`);
   }
 
   let position = 0;
   const peek = () => tokens[position];
   const take = (type, value) => {
     const token = tokens[position];
-    if (!token || token.type !== type || (value !== undefined && token.value !== value)) mismatch();
+    if (!token || token.type !== type || (value !== undefined && token.value !== value)) {
+      mismatch(`EXPECTED_${String(type).toUpperCase()}_GOT_${tokenLabel(token)}`);
+    }
     position += 1;
     return token;
   };
@@ -289,7 +298,7 @@ function normalizeCheckClause(value) {
   }
 
   const expression = parseOr();
-  if (position !== tokens.length) mismatch();
+  if (position !== tokens.length) mismatch(`TRAILING_${tokenLabel(peek())}`);
   return JSON.stringify(expression);
 }
 
@@ -361,7 +370,8 @@ async function verifySchema(connection) {
     try {
       normalizedClause = normalizeCheckClause(row.CHECK_CLAUSE);
     } catch (error) {
-      error.code = checkMismatchCode(row.CONSTRAINT_NAME, "PARSE_MISMATCH");
+      error.code = checkMismatchCode(row.CONSTRAINT_NAME,
+        `PARSE_${error.parseReason || "MISMATCH"}`);
       throw error;
     }
     return [row.TABLE_NAME, row.CONSTRAINT_NAME, row.ENFORCED, normalizedClause];
