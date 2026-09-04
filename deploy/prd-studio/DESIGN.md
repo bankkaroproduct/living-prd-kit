@@ -35,12 +35,13 @@ prefix and may remove recovery records and the fence only for an exact terminal
 canonical result is absent, recovery must select rollback and never guess.
 
 The current source does **not** yet satisfy that recovery design for every early
-provisioning and finalization crash point. Therefore the public `execute` path is
-hard-disabled before all mutation. The remaining supervisor/worker code is an
-auditable implementation draft, not a certified release runner. A future change
-must add the durable per-mutation journal, boot/worker-death resolver, controller
-fault reconciliation, idempotent finalizer, bounded transport recovery, and
-independent fault certifications before removing the guard.
+provisioning and finalization crash point. Therefore the packaged `execute`
+path, supervisor execute/reconcile methods, and remote-worker entry/dispatcher
+are hard-disabled before input or mutation. The remaining supervisor/worker code
+is an auditable implementation draft, not a certified release runner. A future
+change must add the durable per-mutation journal, boot/worker-death resolver,
+controller fault reconciliation, idempotent finalizer, bounded transport
+recovery, and independent fault certifications before removing every guard.
 
 Canonical absence cannot represent user data. It is appropriate only before the
 first team write. Day-2 release design must replace this overlay with encrypted

@@ -353,9 +353,16 @@ function gateState(){
   const g2ok=!!r.coverageAgreed;
   const scen=s.scenarios.filter(x=>x.name.trim());
   const g3ok=scen.length>0 && scen.every(x=>x.demonstrable||(x.nd&&x.ndreason.trim())) && s.events.length>0 && s.events.every(e=>e.fires) && !!m.entry.trim() && !!m.run.trim();
-  const sigs=r.signatures; const g4ok = m.g4!=="" && m.g4!=null && m.g4!==undefined && m.g4!=="pending" && !!m.g4;
-  const g6ok = scen.length>0 && scen.every(x=>r.reconcile[x.id]==="pass"||r.reconcile[x.id]==="deviation") && r.eventAudit;
-  return {g0:!!m.g0, g1:s.screens.length>0&&scen.length>0, g2:g2ok, g3:g3ok, g4:!!m.g4, g5:!!m.g4, g6:g6ok};
+  const g4ok = m.g4!=="" && m.g4!=null && m.g4!==undefined && m.g4!=="pending" && !!m.g4;
+  const g6ok = g4ok && reconciliationIsComplete();
+  return {g0:!!m.g0, g1:s.screens.length>0&&scen.length>0, g2:g2ok, g3:g3ok, g4:g4ok, g5:g4ok, g6:g6ok};
+}
+function reconciliationIsComplete(){
+  const r=P.review;
+  const scen=P.spec.scenarios.filter(x=>x.name.trim());
+  return scen.length>0 && scen.every(x=>r.reconcile[x.id]==="pass" ||
+    (r.reconcile[x.id]==="deviation" && !!String(r.reconcile[x.id+"_note"]||"").trim())) &&
+    r.eventAudit && r.mocksVerified;
 }
 function nextAction(g){
   if(!g.g1) return ["v-amber","You (+ designer)","list your screens in Spec and name your scenarios in Pitch."];
@@ -715,6 +722,11 @@ async function runStranger(btn,note){
 /* ============ 7 · RECONCILE (G6) ============ */
 function renderReconcile(body){
   const r=P.review;
+  if(!P.meta.g4){
+    body.appendChild(el(`<div class="card"><h2>Freeze before reconciling</h2><p class="hint">G6 compares the real build with the signed G4 snapshot. Complete the Lock tab first; reconciliation controls stay unavailable until that snapshot exists.</p></div>`));
+    return;
+  }
+  const mutateReconciliation=fn=>mutate(()=>{fn();P.meta.g6="";P.meta.status="frozen";},{preserveFreeze:true});
   const c0=el(`<div class="card"><h2>Match check — before ship</h2><p class="hint"><b>Who: QA + you.</b> Compare what engineering built against what was signed, scenario by scenario. Differences get fixed, or approved and written down. Nothing drifts silently.</p><div id="rc"></div><div class="check"><span class="st" id="ea1">${r.eventAudit?"✓":"·"}</span><span style="flex:1">Event audit rerun on the real build — every tracked event fires with correct properties</span><button class="xs" id="eab">${r.eventAudit?"Confirmed":"Confirm"}</button></div><div class="check"><span class="st" id="mv1">${r.mocksVerified?"✓":"·"}</span><span style="flex:1">Every mock replaced with its real integration — checked against the MOCKS.md contract, including failure modes the mock didn't simulate</span><button class="xs" id="mvb">${r.mocksVerified?"Confirmed":"Confirm"}</button></div></div>`);
   body.appendChild(c0);
   const scen=P.spec.scenarios.filter(x=>x.name.trim());
@@ -722,16 +734,16 @@ function renderReconcile(body){
     const st=r.reconcile[s.id]||"";
     const row=el(`<div class="check ${st?"ok":"no"}"><span class="st mono" style="width:30px">${escH(s.id)}</span><span style="flex:1">${escH(s.name)}${s.nd?' <span class="note" style="color:var(--amber)">· was NOT-DEMONSTRABLE in the draft — verify for real now, it was never optional</span>':""}${st==="deviation"?` — <i>deviation approved: ${escH(r.reconcile[s.id+"_note"]||"")}</i>`:""}</span></div>`);
     const b1=el(`<button class="xs ${st==="pass"?"primary":""}">Matches</button>`);
-    b1.addEventListener("click",()=>mutate(()=>r.reconcile[s.id]="pass",{preserveFreeze:true}));
+    b1.addEventListener("click",()=>mutateReconciliation(()=>{r.reconcile[s.id]="pass";delete r.reconcile[s.id+"_note"];}));
     const b2=el(`<button class="xs">Deviation</button>`);
-    b2.addEventListener("click",()=>{ const note=window.prompt("What differs, and who approved it?"); if(note!=null) mutate(()=>{r.reconcile[s.id]="deviation"; r.reconcile[s.id+"_note"]=note;},{preserveFreeze:true}); });
+    b2.addEventListener("click",()=>{ const note=window.prompt("What differs, and who approved it?"); if(note!=null&&!note.trim()){toast("Record the difference and approver");return;} if(note!=null) mutateReconciliation(()=>{r.reconcile[s.id]="deviation"; r.reconcile[s.id+"_note"]=note.trim();}); });
     row.append(b1,b2);
     c0.querySelector("#rc").appendChild(row);
   });
   if(!scen.length) c0.querySelector("#rc").innerHTML='<p class="note">No scenarios — nothing to reconcile yet.</p>';
-  c0.querySelector("#eab").addEventListener("click",()=>mutate(()=>r.eventAudit=!r.eventAudit,{preserveFreeze:true}));
-  c0.querySelector("#mvb").addEventListener("click",()=>mutate(()=>r.mocksVerified=!r.mocksVerified,{preserveFreeze:true}));
-  const done=scen.length>0&&scen.every(s=>r.reconcile[s.id])&&r.eventAudit&&r.mocksVerified;
+  c0.querySelector("#eab").addEventListener("click",()=>mutateReconciliation(()=>r.eventAudit=!r.eventAudit));
+  c0.querySelector("#mvb").addEventListener("click",()=>mutateReconciliation(()=>r.mocksVerified=!r.mocksVerified));
+  const done=reconciliationIsComplete();
   body.appendChild(el(`<div class="verdict ${done?"v-green":"v-amber"}" style="margin-top:14px"><span class="pill">${done?"CLEAR TO SHIP":"NOT YET"}</span><span>${done?"Every scenario reconciled and analytics verified.":"Reconcile every scenario and confirm the event audit."}</span></div>`));
   if(done&&!P.meta.g6) mutate(()=>{P.meta.g6=today(); P.meta.status="reconciled";},{preserveFreeze:true});
 }

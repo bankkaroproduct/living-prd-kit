@@ -79,11 +79,13 @@ runtime identity receives only `SELECT` on `schema_versions` and
 
 ## Execution status and boundary
 
-Live execution is intentionally disabled. Both the packaged entry point and the
-supervisor return `RUNNER_EXECUTION_NOT_CERTIFIED` before loading a private
-profile, opening SSH, starting the canonical controller, creating an attempt
-directory, or mutating a target. The files in `runner/` beyond this boundary are
-review material for the follow-up recovery implementation, not deployable code.
+Live execution is intentionally disabled. The packaged entry point, supervisor
+execute/reconcile methods, and remote-worker entry/dispatcher all return
+`RUNNER_EXECUTION_NOT_CERTIFIED` before loading a private profile, reading a
+worker request, opening SSH, starting the canonical controller, creating an
+attempt directory, or mutating a target. The files in `runner/` beyond this
+boundary are review material for the follow-up recovery implementation, not
+deployable code.
 
 Enabling execution requires a separately reviewed implementation that writes a
 durable recovery journal before the first target mutation, covers every partial

@@ -17,6 +17,7 @@ const {
   createLogger,
   installServerFailureHandler,
   loadConfig,
+  validateFreezeTransition,
   validateProjectData,
 } = require("../server");
 const { migrationConfig } = require("../scripts/apply-schema");
@@ -316,17 +317,63 @@ describe("project API", () => {
     const { origin } = await launch();
     const url = `${origin}/prd-studio/api/projects`;
     const frozen = project("Frozen snapshot");
+    frozen.meta.entry = "https://prototype.invalid/example";
+    frozen.meta.run = "Open the prototype in a browser";
     frozen.meta.g4 = "2026-09-04";
     frozen.meta.status = "frozen";
+    frozen.spec.scenarios[0] = {
+      id: "S1", name: "Checkout completes", demonstrable: true,
+      trigger: "Open checkout and submit", nd: false, ndreason: "",
+    };
+    frozen.spec.events = [{ name: "checkout_completed", trigger: "submit", props: "order_id", fires: true }];
+    frozen.spec.fidelity = [{ path: "checkout", label: "REAL", note: "working path" }];
+    frozen.review.coverageAgreed = "2026-09-04";
+    frozen.review.coverageBy = "Tech + QA";
     frozen.review.dodManual = { secrets: true, runzero: true };
     frozen.review.stranger = { ran: "2026-09-04", defects: 0, report: "No gaps." };
     frozen.review.signatures = { pm: "PM", tech: "Tech", qa: "QA" };
     frozen.review.digest = computeFreezeDigest(frozen);
+
+    const shortcutFreeze = project("Shortcut freeze");
+    shortcutFreeze.meta.g4 = "2026-09-04";
+    shortcutFreeze.meta.status = "frozen";
+    shortcutFreeze.review.dodManual = { secrets: true, runzero: true };
+    shortcutFreeze.review.stranger = { ran: "2026-09-04", defects: 0, report: "No gaps." };
+    shortcutFreeze.review.signatures = { pm: "PM", tech: "Tech", qa: "QA" };
+    shortcutFreeze.review.digest = computeFreezeDigest(shortcutFreeze);
+    assert.match(validateFreezeTransition(null, shortcutFreeze), /fingerprint is invalid/);
+
     const created = await fetch(url, {
       method: "POST", headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ id: "frozen-snapshot-a1", slug: "frozen-snapshot", data: frozen }),
     });
     assert.equal(created.status, 201);
+
+    const incompleteReconciliation = structuredClone(frozen);
+    incompleteReconciliation.meta.g6 = "2026-09-05";
+    incompleteReconciliation.meta.status = "reconciled";
+    assert.match(validateProjectData(incompleteReconciliation), /freeze and reconciliation state/);
+    const incompleteResponse = await fetch(`${url}/frozen-snapshot-a1`, {
+      method: "PUT", headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ version: 1, data: incompleteReconciliation }),
+    });
+    assert.equal(incompleteResponse.status, 400);
+
+    const falseReconciliation = project("Never frozen");
+    falseReconciliation.meta.status = "reconciled";
+    falseReconciliation.meta.g6 = "2026-09-05";
+    assert.match(validateProjectData(falseReconciliation), /freeze and reconciliation state/);
+
+    const missingMockCheck = structuredClone(frozen);
+    missingMockCheck.meta.g6 = "2026-09-05";
+    missingMockCheck.meta.status = "reconciled";
+    missingMockCheck.review.reconcile.S1 = "pass";
+    missingMockCheck.review.eventAudit = true;
+    assert.match(validateProjectData(missingMockCheck), /freeze and reconciliation state/);
+
+    const emptyDeviation = structuredClone(frozen);
+    emptyDeviation.review.reconcile = { S1: "deviation", S1_note: "" };
+    assert.match(validateProjectData(emptyDeviation), /data\.review\.reconcile/);
 
     const reconciled = structuredClone(frozen);
     reconciled.meta.g6 = "2026-09-05";

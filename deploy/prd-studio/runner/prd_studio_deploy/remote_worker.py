@@ -1923,6 +1923,10 @@ class Worker:
                     json.dumps(restored_configuration, sort_keys=True).encode())}
 
     def request(self, op: str, payload: dict[str, Any]) -> dict[str, Any]:
+        raise WorkerError("RUNNER_EXECUTION_NOT_CERTIFIED")
+
+        # Unreachable until the recovery protocol receives independent fault
+        # certification. Kept as reviewable implementation material only.
         if op == "initialize":
             return self.initialize(payload)
         if op == "initialize-reconcile":
@@ -2140,39 +2144,13 @@ class Worker:
 
 
 def main() -> int:
-    global WORKER_INSTANCE
-    for number in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
-        signal.signal(number, _signal_exit)
-    worker = Worker()
-    WORKER_INSTANCE = worker
-    try:
-        for raw in sys.stdin.buffer:
-            request: dict[str, Any] = {}
-            try:
-                _require(len(raw) <= 1024 * 1024, "PROTOCOL_REQUEST_TOO_LARGE")
-                request = json.loads(raw.decode("utf-8"))
-                _require(isinstance(request, dict) and set(request) == {"op", "payload"}
-                         and isinstance(request["op"], str) and isinstance(request["payload"], dict),
-                         "PROTOCOL_REQUEST_INVALID")
-                response = worker.request(request["op"], request["payload"])
-            except WorkerError as error:
-                response = {"status": "FAIL", "reason_code": error.reason_code, "evidence": {}}
-            except Exception:
-                response = {"status": "ERROR", "reason_code": "REMOTE_WORKER_UNEXPECTED", "evidence": {}}
-            sys.stdout.write(json.dumps(response, sort_keys=True, separators=(",", ":")) + "\n")
-            sys.stdout.flush()
-            if request.get("op") == "close":
-                break
-    finally:
-        _kill_child()
-        worker.emergency_rollback()
-        if worker.lock_fd is not None:
-            try:
-                fcntl.flock(worker.lock_fd, fcntl.LOCK_UN)
-            finally:
-                os.close(worker.lock_fd)
-        WORKER_INSTANCE = None
-    return 0
+    # The worker source is review material, not a separately callable live
+    # entry point. Fail before signal handlers, stdin, locks, or filesystem use.
+    sys.stdout.write(json.dumps(
+        {"status": "ERROR", "reason_code": "RUNNER_EXECUTION_NOT_CERTIFIED"},
+        sort_keys=True, separators=(",", ":")) + "\n")
+    sys.stdout.flush()
+    return 2
 
 
 if __name__ == "__main__":

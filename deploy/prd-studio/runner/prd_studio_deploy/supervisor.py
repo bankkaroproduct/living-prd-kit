@@ -376,6 +376,10 @@ class DeploymentSupervisor:
 
     def reconcile(self) -> str:
         """Resolve a durable global-commit-in-doubt state from the canonical receipt."""
+        raise RunnerError("RUNNER_EXECUTION_NOT_CERTIFIED")
+
+        # Unreachable until the recovery protocol receives independent fault
+        # certification. Kept as reviewable implementation material only.
         self.receipt_value = load_json(self.receipt)
         assets, fixture = load_assets()
         payload = {"profile": self.profile.value, "manifest": self.packet.manifest_value,

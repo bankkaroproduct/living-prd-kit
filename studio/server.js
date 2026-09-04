@@ -424,11 +424,37 @@ function validateProjectData(data) {
   if (!isPlainObject(review.reconcile) || typeof review.eventAudit !== "boolean" || typeof review.mocksVerified !== "boolean") {
     return "data.review reconciliation is invalid";
   }
+  const allowedReconciliationKeys = new Set();
   for (const scenarioId of scenarioIds) {
+    allowedReconciliationKeys.add(scenarioId);
+    allowedReconciliationKeys.add(`${scenarioId}_note`);
     const state = review.reconcile[scenarioId];
     if (state !== undefined && state !== "pass" && state !== "deviation") return "data.review.reconcile is invalid";
     const note = review.reconcile[`${scenarioId}_note`];
     if (note !== undefined && !validBoundedString(note, 4000)) return "data.review.reconcile is invalid";
+    if ((state === "deviation" && (!note || !note.trim())) || (state !== "deviation" && note !== undefined)) {
+      return "data.review.reconcile is invalid";
+    }
+  }
+  if (Object.keys(review.reconcile).some((key) => !allowedReconciliationKeys.has(key))) {
+    return "data.review.reconcile is invalid";
+  }
+
+  const isFrozen = Boolean(meta.g4);
+  const digest = String(review.digest || "");
+  const postFreezeStateIsEmpty = meta.g6 === "" && emptyObject(review.reconcile) &&
+    review.eventAudit === false && review.mocksVerified === false;
+  if (!isFrozen) {
+    if (!["framing", "building"].includes(meta.status) || digest || !postFreezeStateIsEmpty) {
+      return "data freeze and reconciliation state is invalid";
+    }
+  } else {
+    if (!/^sha256:[0-9a-f]{64}$/.test(digest) ||
+        (meta.status === "frozen" && meta.g6 !== "") ||
+        (meta.status === "reconciled" && (meta.g6 === "" || !reconciliationComplete(data))) ||
+        !["frozen", "reconciled"].includes(meta.status)) {
+      return "data freeze and reconciliation state is invalid";
+    }
   }
   return null;
 }
@@ -442,9 +468,18 @@ function canonicalJson(value) {
 }
 
 function computeFreezeDigest(data) {
-  const snapshot = JSON.parse(JSON.stringify(data));
+  const snapshot = frozenCore(data);
   snapshot.review.digest = "";
   return `sha256:${crypto.createHash("sha256").update(canonicalJson(snapshot), "utf8").digest("hex")}`;
+}
+
+function validateFrozenSnapshotIntegrity(data) {
+  if (!data.meta.g4) return null;
+  const digest = String(data.review.digest || "");
+  return /^sha256:[0-9a-f]{64}$/.test(digest) &&
+    constantTimeEqual(digest, computeFreezeDigest(data))
+    ? null
+    : "the stored frozen snapshot fingerprint is invalid";
 }
 
 function frozenCore(data) {
@@ -463,6 +498,38 @@ function emptyObject(value) {
   return isPlainObject(value) && Object.keys(value).length === 0;
 }
 
+function freezePrerequisitesComplete(data) {
+  const { meta, spec, review } = data;
+  const scenarios = spec.scenarios.filter((scenario) => scenario.name.trim());
+  const dataRuleClean = meta.data === "synthetic" ||
+    (meta.data === "staging-dump" && meta.pipeline.trim() && meta.dumpdate.trim());
+  return Boolean(
+    review.coverageAgreed.trim() &&
+    scenarios.length && scenarios.every((scenario) =>
+      scenario.demonstrable || (scenario.nd && scenario.ndreason.trim())) &&
+    spec.events.length && spec.events.every((event) => event.fires) &&
+    spec.fidelity.length && spec.fidelity.every((item) => item.path.trim()) &&
+    meta.entry.trim() && meta.run.trim() && dataRuleClean &&
+    review.objections.every((objection) => objection.resolved) &&
+    review.dodManual.secrets && review.dodManual.runzero &&
+    review.stranger.ran && review.stranger.defects === 0 &&
+    review.signatures.pm && review.signatures.tech && review.signatures.qa
+  );
+}
+
+function reconciliationComplete(data) {
+  const scenarios = data.spec.scenarios.filter((scenario) => scenario.name.trim());
+  return Boolean(
+    data.meta.g4 && scenarios.length &&
+    scenarios.every((scenario) => {
+      const state = data.review.reconcile[scenario.id];
+      return state === "pass" ||
+        (state === "deviation" && Boolean(data.review.reconcile[`${scenario.id}_note`]?.trim()));
+    }) &&
+    data.review.eventAudit && data.review.mocksVerified
+  );
+}
+
 function validateFreezeTransition(currentData, nextData) {
   const wasFrozen = Boolean(currentData && currentData.meta.g4);
   const isFrozen = Boolean(nextData.meta.g4);
@@ -471,15 +538,11 @@ function validateFreezeTransition(currentData, nextData) {
     nextData.review.eventAudit === false && nextData.review.mocksVerified === false;
 
   if (!wasFrozen && !isFrozen) {
-    return digest ? "an unfrozen project cannot retain a frozen snapshot fingerprint" : null;
+    return null;
   }
   if (!wasFrozen && isFrozen) {
-    const signatures = nextData.review.signatures;
-    const stranger = nextData.review.stranger;
     if (nextData.meta.status !== "frozen" || !postFreezeStateIsEmpty ||
-        !signatures.pm || !signatures.tech || !signatures.qa ||
-        !nextData.review.dodManual.secrets || !nextData.review.dodManual.runzero ||
-        !stranger.ran || stranger.defects !== 0 ||
+        !freezePrerequisitesComplete(nextData) ||
         !/^sha256:[0-9a-f]{64}$/.test(digest) || !constantTimeEqual(digest, computeFreezeDigest(nextData))) {
       return "the frozen snapshot fingerprint is invalid";
     }
@@ -489,7 +552,8 @@ function validateFreezeTransition(currentData, nextData) {
   if (isFrozen && isDeepStrictEqual(frozenCore(currentData), frozenCore(nextData))) {
     if (!['frozen', 'reconciled'].includes(nextData.meta.status) ||
         (nextData.meta.status === "frozen" && nextData.meta.g6 !== "") ||
-        (nextData.meta.status === "reconciled" && nextData.meta.g6 === "")) {
+        (nextData.meta.status === "reconciled" &&
+          (nextData.meta.g6 === "" || !reconciliationComplete(nextData)))) {
       return "the post-freeze reconciliation state is invalid";
     }
     return null;
@@ -715,7 +779,7 @@ function createApp({ pool, config, logger = createLogger() }) {
       );
       if (!rows.length) return res.status(404).json({ error: "not found" });
       const data = parseStoredData(rows[0].data);
-      if (validateProjectData(data)) {
+      if (validateProjectData(data) || validateFrozenSnapshotIntegrity(data)) {
         const integrityError = new Error("invalid stored project data");
         integrityError.code = "INVALID_STORED_DATA";
         throw integrityError;
@@ -778,7 +842,7 @@ function createApp({ pool, config, logger = createLogger() }) {
       if (Number(rows[0].row_version) !== version) {
         await connection.rollback();
         const currentData = parseStoredData(rows[0].data);
-        if (validateProjectData(currentData)) {
+        if (validateProjectData(currentData) || validateFrozenSnapshotIntegrity(currentData)) {
           const integrityError = new Error("invalid stored project data");
           integrityError.code = "INVALID_STORED_DATA";
           throw integrityError;
@@ -790,7 +854,7 @@ function createApp({ pool, config, logger = createLogger() }) {
         });
       }
       const currentData = parseStoredData(rows[0].data);
-      if (validateProjectData(currentData)) {
+      if (validateProjectData(currentData) || validateFrozenSnapshotIntegrity(currentData)) {
         const integrityError = new Error("invalid stored project data");
         integrityError.code = "INVALID_STORED_DATA";
         throw integrityError;

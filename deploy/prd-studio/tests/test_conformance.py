@@ -25,6 +25,7 @@ from prd_studio_deploy.evidence import assert_release_evidence_safe
 from prd_studio_deploy.gate_runtime import evaluate_certification_case
 from prd_studio_deploy.process import run_bounded
 from prd_studio_deploy.records import assert_secret_free
+from prd_studio_deploy.supervisor import DeploymentSupervisor
 
 WORKER_SPEC = importlib.util.spec_from_file_location(
     "prd_studio_remote_worker", ROOT / "runner/prd_studio_deploy/remote_worker.py")
@@ -208,6 +209,26 @@ class StaticContractTests(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertEqual(json.loads(output.getvalue()), {
             "status": "ERROR", "reason_code": "RUNNER_EXECUTION_NOT_CERTIFIED"})
+
+    def test_worker_and_reconcile_fail_before_input_or_dispatch(self) -> None:
+        class ForbiddenStdin:
+            @property
+            def buffer(self):
+                raise AssertionError("disabled worker must not read stdin")
+
+        output = StringIO()
+        with mock.patch.object(worker.sys, "stdin", ForbiddenStdin()), redirect_stdout(output):
+            self.assertEqual(worker.main(), 2)
+        self.assertEqual(json.loads(output.getvalue()), {
+            "status": "ERROR", "reason_code": "RUNNER_EXECUTION_NOT_CERTIFIED"})
+
+        instance = worker.Worker()
+        with self.assertRaisesRegex(worker.WorkerError, "RUNNER_EXECUTION_NOT_CERTIFIED"):
+            instance.request("initialize", {})
+
+        supervisor = object.__new__(DeploymentSupervisor)
+        with self.assertRaisesRegex(RunnerError, "RUNNER_EXECUTION_NOT_CERTIFIED"):
+            supervisor.reconcile()
 
     def test_public_requests_never_follow_redirects(self) -> None:
         handler = worker._NoRedirect()
