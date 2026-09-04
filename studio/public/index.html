@@ -216,6 +216,11 @@ function canonicalJson(value){
 }
 function slugify(s){return String(s||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,40)||"feature";}
 function today(){return new Date().toISOString().slice(0,10);}
+function completedGateMarker(value){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(value||"")))return false;
+  const parsed=new Date(value+"T00:00:00.000Z");
+  return Number.isFinite(parsed.valueOf())&&parsed.toISOString().slice(0,10)===value;
+}
 function toast(m){const t=$("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1900);}
 function debounceSave(){ dirty=true; lastLocalEdit=Date.now(); clearTimeout(saveTimer); saveTimer=setTimeout(persist,800); }
 async function persist(){
@@ -238,7 +243,7 @@ async function persist(){
   }catch(e){ dirty=true; toast("Couldn't sync — will retry on next edit"); }
 }
 function invalidateFrozenSnapshot(){
-  if(!P?.meta?.g4) return;
+  if(!completedGateMarker(P?.meta?.g4)) return;
   P.meta.g4=""; P.meta.g6=""; P.meta.status="building";
   P.review.digest="";
   P.review.releaseNum=Math.min(10000,P.review.releaseNum+1);
@@ -353,14 +358,14 @@ function gateState(){
   const g2ok=!!r.coverageAgreed;
   const scen=s.scenarios.filter(x=>x.name.trim());
   const g3ok=scen.length>0 && scen.every(x=>x.demonstrable||(x.nd&&x.ndreason.trim())) && s.events.length>0 && s.events.every(e=>e.fires) && !!m.entry.trim() && !!m.run.trim();
-  const g4ok = m.g4!=="" && m.g4!=null && m.g4!==undefined && m.g4!=="pending" && !!m.g4;
+  const g4ok = completedGateMarker(m.g4);
   const g6ok = g4ok && reconciliationIsComplete();
   return {g0:!!m.g0, g1:s.screens.length>0&&scen.length>0, g2:g2ok, g3:g3ok, g4:g4ok, g5:g4ok, g6:g6ok};
 }
 function reconciliationIsComplete(){
   const r=P.review;
   const scen=P.spec.scenarios.filter(x=>x.name.trim());
-  return scen.length>0 && scen.every(x=>r.reconcile[x.id]==="pass" ||
+  return completedGateMarker(P.meta.g4) && scen.length>0 && scen.every(x=>r.reconcile[x.id]==="pass" ||
     (r.reconcile[x.id]==="deviation" && !!String(r.reconcile[x.id+"_note"]||"").trim())) &&
     r.eventAudit && r.mocksVerified;
 }
@@ -641,7 +646,7 @@ function dodItems(){
 }
 function renderLock(body){
   const m=P.meta,r=P.review;
-  const frozen=!!m.g4;
+  const frozen=completedGateMarker(m.g4);
 
   const c1=el(`<div class="card"><h2>Stranger test</h2><p class="hint"><b>Who: you + tech lead + QA — all three sign below.</b> An AI with no part in the build reads only your bundle and answers "what happens if…?" questions. Anything it can't answer is a gap in the bundle — fix the bundle, not the answer. Required to lock; the decision itself stays human.</p><div id="strOut"></div><div class="btnrow"><button class="primary" id="runStr" ${sampleFn?"":"hidden"}>Run stranger test</button><span class="note" id="strNote">${sampleFn?"Uses your own Claude account; takes ~30–60s.":"No AI is wired into this self-hosted copy — run it yourself: paste the Files tab's contents into any fresh AI chat and ask the questions below."}</span></div></div>`);
   body.appendChild(c1);
@@ -722,7 +727,7 @@ async function runStranger(btn,note){
 /* ============ 7 · RECONCILE (G6) ============ */
 function renderReconcile(body){
   const r=P.review;
-  if(!P.meta.g4){
+  if(!completedGateMarker(P.meta.g4)){
     body.appendChild(el(`<div class="card"><h2>Freeze before reconciling</h2><p class="hint">G6 compares the real build with the signed G4 snapshot. Complete the Lock tab first; reconciliation controls stay unavailable until that snapshot exists.</p></div>`));
     return;
   }
@@ -751,6 +756,7 @@ function renderReconcile(body){
 /* ============ FILES ============ */
 function genManifest(){
   const m=P.meta,s=P.spec,r=P.review;
+  const frozen=completedGateMarker(m.g4);
   const scen=s.scenarios.filter(x=>x.name.trim());
   const T=TIERS.find(x=>x[0]===m.tier)||TIERS[0];
   const q=v=>`"${escY(v)}"`;
@@ -799,16 +805,16 @@ function genManifest(){
   y.push(`  g1_solution: { passed: ${q(s.screens.length?m.g0:"pending")}, by: ${q(m.owner||"")} }`);
   y.push(`  g2_alpha_review: { passed: ${q(m.g2||"pending")}, tech_lead: ${q(m.tech||"")}, qa: ${q(m.qa||"")}, coverage_plan: ${q(r.coverageAgreed?"agreed":"pending")} }`);
   y.push(`  g3_bundle_complete: { passed: ${q(gateState().g3?today():"pending")}, by: ${q(m.owner||"")} }`);
-  y.push(`  g4_freeze: { passed: ${q(m.g4||"pending")} }`);
+  y.push(`  g4_freeze: { passed: ${q(frozen?m.g4:"pending")} }`);
   y.push(`  g5_productionise: { passed: "pending", by: "" }`);
   y.push(`  g6_reconcile: { passed: ${q(m.g6||"pending")}, by: ${q(m.qa||"")} }`);
   y.push(`release:`);
-  y.push(`  release_id: ${q(m.g4?("prd-"+m.slug+"-r"+r.releaseNum):"pending")}`);
-  y.push(`  frozen: ${q(m.g4||"pending")}`);
+  y.push(`  release_id: ${q(frozen?("prd-"+m.slug+"-r"+r.releaseNum):"pending")}`);
+  y.push(`  frozen: ${q(frozen?m.g4:"pending")}`);
   y.push(`  prototype_commits: []`);
   y.push(`  figma_versions: []`);
   y.push(`  api_contracts: []`);
-  y.push(`  evidence_tag: ${q(m.g4?("prd/"+m.slug+"/r"+r.releaseNum):"pending")}`);
+  y.push(`  evidence_tag: ${q(frozen?("prd/"+m.slug+"/r"+r.releaseNum):"pending")}`);
   y.push(`  digest: "pending"`); // binding digest comes only from bin/freeze.py over repository artifacts
   y.push(`  approvals:`);
   y.push(`    pm_intent_behaviour: { by: ${q(r.signatures.pm||"")}, date: ${q(r.signatures.pm?r.signatures.pm.slice(0,10):"pending")} }`);

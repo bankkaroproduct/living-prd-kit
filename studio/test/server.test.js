@@ -334,6 +334,16 @@ describe("project API", () => {
     frozen.review.signatures = { pm: "PM", tech: "Tech", qa: "QA" };
     frozen.review.digest = computeFreezeDigest(frozen);
 
+    const pendingMarker = structuredClone(frozen);
+    pendingMarker.meta.g4 = "pending";
+    pendingMarker.review.digest = computeFreezeDigest(pendingMarker);
+    assert.match(validateProjectData(pendingMarker), /gate marker is invalid/);
+    assert.match(validateFreezeTransition(null, pendingMarker), /gate marker is invalid/);
+
+    const impossibleDate = project("Impossible marker date");
+    impossibleDate.meta.g0 = "2026-02-30";
+    assert.match(validateProjectData(impossibleDate), /gate marker is invalid/);
+
     const shortcutFreeze = project("Shortcut freeze");
     shortcutFreeze.meta.g4 = "2026-09-04";
     shortcutFreeze.meta.status = "frozen";

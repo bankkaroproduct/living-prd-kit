@@ -283,6 +283,16 @@ function validBoundedString(value, maximum, allowEmpty = true) {
   return typeof value === "string" && Buffer.byteLength(value, "utf8") <= maximum && (allowEmpty || value.trim().length > 0);
 }
 
+function completedGateMarker(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(parsed.valueOf()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+function validGateMarker(value) {
+  return value === "" || completedGateMarker(value);
+}
+
 function validateJsonTree(root) {
   let nodes = 0;
   function walk(value, depth) {
@@ -347,6 +357,9 @@ function validateProjectData(data) {
     ["created", 64], ["g0", 64], ["g1", 64], ["g2", 64], ["g3", 64], ["g4", 64], ["g6", 64],
   ]);
   if (metaTextError) return `data.meta.${metaTextError} is invalid`;
+  if (![meta.g0, meta.g1, meta.g2, meta.g3, meta.g4, meta.g6].every(validGateMarker)) {
+    return "data.meta gate marker is invalid";
+  }
   if (meta.data === "raw") return "raw customer data is prohibited";
   if (!["synthetic", "staging-dump"].includes(meta.data)) return "data.meta.data is invalid";
   if (!Array.isArray(meta.triggers) || meta.triggers.length > TRIGGERS.size || !meta.triggers.every((value) => TRIGGERS.has(value))) {
@@ -440,7 +453,7 @@ function validateProjectData(data) {
     return "data.review.reconcile is invalid";
   }
 
-  const isFrozen = Boolean(meta.g4);
+  const isFrozen = completedGateMarker(meta.g4);
   const digest = String(review.digest || "");
   const postFreezeStateIsEmpty = meta.g6 === "" && emptyObject(review.reconcile) &&
     review.eventAudit === false && review.mocksVerified === false;
@@ -474,7 +487,8 @@ function computeFreezeDigest(data) {
 }
 
 function validateFrozenSnapshotIntegrity(data) {
-  if (!data.meta.g4) return null;
+  if (data.meta.g4 === "") return null;
+  if (!completedGateMarker(data.meta.g4)) return "the stored frozen snapshot fingerprint is invalid";
   const digest = String(data.review.digest || "");
   return /^sha256:[0-9a-f]{64}$/.test(digest) &&
     constantTimeEqual(digest, computeFreezeDigest(data))
@@ -520,7 +534,7 @@ function freezePrerequisitesComplete(data) {
 function reconciliationComplete(data) {
   const scenarios = data.spec.scenarios.filter((scenario) => scenario.name.trim());
   return Boolean(
-    data.meta.g4 && scenarios.length &&
+    completedGateMarker(data.meta.g4) && scenarios.length &&
     scenarios.every((scenario) => {
       const state = data.review.reconcile[scenario.id];
       return state === "pass" ||
@@ -531,8 +545,11 @@ function reconciliationComplete(data) {
 }
 
 function validateFreezeTransition(currentData, nextData) {
-  const wasFrozen = Boolean(currentData && currentData.meta.g4);
-  const isFrozen = Boolean(nextData.meta.g4);
+  if (!validGateMarker(nextData.meta.g4) || !validGateMarker(nextData.meta.g6)) {
+    return "the freeze gate marker is invalid";
+  }
+  const wasFrozen = Boolean(currentData && completedGateMarker(currentData.meta.g4));
+  const isFrozen = completedGateMarker(nextData.meta.g4);
   const digest = String(nextData.review.digest || "");
   const postFreezeStateIsEmpty = nextData.meta.g6 === "" && emptyObject(nextData.review.reconcile) &&
     nextData.review.eventAudit === false && nextData.review.mocksVerified === false;
