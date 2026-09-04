@@ -140,11 +140,7 @@ function normalizeExtra(value) {
 }
 
 function normalizeCheckClause(value) {
-  // MySQL INFORMATION_SCHEMA can serialize literal delimiters as \\' even
-  // though CHECK_CLAUSE is already a returned string. Normalize only that
-  // delimiter form; every resulting literal value is still compared exactly.
-  const input = String(value || "").trim().replace(/\\'/g, "'")
-    .replace(/`/g, "").replace(/_[a-z0-9]+(?=\s*')/gi, "");
+  const input = String(value || "").trim();
   const tokens = [];
   let index = 0;
 
@@ -161,31 +157,79 @@ function normalizeCheckClause(value) {
     return String(token.type).toUpperCase().replace(/[^A-Z0-9]+/g, "TOKEN").slice(0, 24);
   }
 
+  function escapedQuoteAt(offset) {
+    return input[offset] === "\\" && input[offset + 1] === "'";
+  }
+
+  function readLiteral(escapedDelimiter) {
+    index += escapedDelimiter ? 2 : 1;
+    let literal = "";
+    let closed = false;
+    while (index < input.length) {
+      if (escapedDelimiter && escapedQuoteAt(index)) {
+        index += 2;
+        closed = true;
+        break;
+      }
+      if (!escapedDelimiter && input[index] === "'" && input[index + 1] === "'") {
+        literal += "'";
+        index += 2;
+      } else if (!escapedDelimiter && input[index] === "'") {
+        index += 1;
+        closed = true;
+        break;
+      } else {
+        literal += input[index];
+        index += 1;
+      }
+    }
+    if (!closed) mismatch("UNCLOSED_LITERAL");
+    tokens.push({ type: "literal", value: literal });
+  }
+
+  function charsetLiteralOffset() {
+    const introducer = /^_[A-Za-z0-9]+/.exec(input.slice(index));
+    if (!introducer) return null;
+    let offset = index + introducer[0].length;
+    while (offset < input.length && /\s/.test(input[offset])) offset += 1;
+    return input[offset] === "'" || escapedQuoteAt(offset) ? offset : null;
+  }
+
   while (index < input.length) {
     const character = input[index];
     if (/\s/.test(character)) {
       index += 1;
       continue;
     }
-    if (character === "'") {
+    const literalOffset = charsetLiteralOffset();
+    if (literalOffset !== null) {
+      index = literalOffset;
+      readLiteral(escapedQuoteAt(index));
+      continue;
+    }
+    if (character === "'" || escapedQuoteAt(index)) {
+      readLiteral(escapedQuoteAt(index));
+      continue;
+    }
+    if (character === "`") {
       index += 1;
-      let literal = "";
+      let identifier = "";
       let closed = false;
       while (index < input.length) {
-        if (input[index] === "'" && input[index + 1] === "'") {
-          literal += "'";
+        if (input[index] === "`" && input[index + 1] === "`") {
+          identifier += "`";
           index += 2;
-        } else if (input[index] === "'") {
+        } else if (input[index] === "`") {
           index += 1;
           closed = true;
           break;
         } else {
-          literal += input[index];
+          identifier += input[index];
           index += 1;
         }
       }
-      if (!closed) mismatch();
-      tokens.push({ type: "literal", value: literal });
+      if (!closed || !identifier) mismatch("INVALID_QUOTED_IDENTIFIER");
+      tokens.push({ type: "word", value: identifier.toLowerCase() });
       continue;
     }
     const word = /^[A-Za-z_][A-Za-z0-9_$]*/.exec(input.slice(index));

@@ -97,6 +97,15 @@ describe("schema verifier", () => {
     assert.notEqual(normalizeCheckClause("(a OR b) AND c"), normalizeCheckClause("a OR (b AND c)"));
   });
 
+  test("preserves charset-like suffixes inside literal values", () => {
+    const statusDrift = RAW_CHECKS.chk_projects_status.replace("framing'", "framing_evil'");
+    assert.notEqual(normalizeCheckClause(statusDrift), normalizeCheckClause(RAW_CHECKS.chk_projects_status));
+
+    const escapedExpected = "regexp_like(`id`,_utf8mb4\\'^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$\\',_utf8mb4\\'c\\')";
+    const escapedDrift = escapedExpected.replace("?$\\'", "?$_evil\\'");
+    assert.notEqual(normalizeCheckClause(escapedDrift), normalizeCheckClause(escapedExpected));
+  });
+
   test("uses prepared statements for every migration value", async () => {
     const schemaSql = fs.readFileSync(path.join(__dirname, "..", "schema.sql"), "utf8");
     const checksum = crypto.createHash("sha256").update(schemaSql, "utf8").digest("hex");
