@@ -102,6 +102,33 @@ function assertEqual(actual, expected, code) {
   }
 }
 
+function checkMismatchCode(constraintName, suffix = "MISMATCH") {
+  const normalized = String(constraintName || "UNKNOWN").toUpperCase().replace(/[^A-Z0-9]+/g, "_");
+  return `SCHEMA_${normalized}_${suffix}`.slice(0, 64);
+}
+
+function assertCheckRowsEqual(actual, expected) {
+  if (actual.length !== expected.length) {
+    const error = new Error("schema check-constraint set does not match the certified definition");
+    error.code = "SCHEMA_CHECK_SET_MISMATCH";
+    throw error;
+  }
+  for (let index = 0; index < expected.length; index += 1) {
+    const expectedRow = expected[index];
+    const actualRow = actual[index];
+    if (JSON.stringify(actualRow.slice(0, 3)) !== JSON.stringify(expectedRow.slice(0, 3))) {
+      const error = new Error("schema check-constraint metadata does not match the certified definition");
+      error.code = checkMismatchCode(expectedRow[1], "METADATA_MISMATCH");
+      throw error;
+    }
+    if (actualRow[3] !== expectedRow[3]) {
+      const error = new Error("schema check expression does not match the certified definition");
+      error.code = checkMismatchCode(expectedRow[1]);
+      throw error;
+    }
+  }
+}
+
 function normalizeColumnDefault(value) {
   if (value === null || value === undefined) return null;
   const normalized = String(value).trim().toLowerCase();
@@ -329,8 +356,17 @@ async function verifySchema(connection) {
       WHERE tc.TABLE_SCHEMA = DATABASE() AND tc.CONSTRAINT_TYPE = 'CHECK'
       ORDER BY tc.TABLE_NAME, tc.CONSTRAINT_NAME`
   );
-  assertEqual(checkRows.map((row) => [row.TABLE_NAME, row.CONSTRAINT_NAME, row.ENFORCED, normalizeCheckClause(row.CHECK_CLAUSE)]),
-    EXPECTED_CHECKS, "SCHEMA_CHECK_MISMATCH");
+  const actualChecks = checkRows.map((row) => {
+    let normalizedClause;
+    try {
+      normalizedClause = normalizeCheckClause(row.CHECK_CLAUSE);
+    } catch (error) {
+      error.code = checkMismatchCode(row.CONSTRAINT_NAME, "PARSE_MISMATCH");
+      throw error;
+    }
+    return [row.TABLE_NAME, row.CONSTRAINT_NAME, row.ENFORCED, normalizedClause];
+  });
+  assertCheckRowsEqual(actualChecks, EXPECTED_CHECKS);
 }
 
 function assertSupportedMysql(version) {
@@ -417,6 +453,7 @@ module.exports = {
   EXPECTED_CONSTRAINTS,
   EXPECTED_INDEXES,
   applySchema,
+  assertCheckRowsEqual,
   assertSupportedMysql,
   migrationConfig,
   normalizeCheckClause,

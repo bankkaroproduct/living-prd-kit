@@ -127,8 +127,8 @@ describe("schema verifier", () => {
   for (const [name, drift, code] of [
     ["column default drift", { columnDefault: true }, "SCHEMA_COLUMN_MISMATCH"],
     ["column extra drift", { extra: true }, "SCHEMA_COLUMN_MISMATCH"],
-    ["check body drift", { checkClause: true }, "SCHEMA_CHECK_MISMATCH"],
-    ["unenforced check drift", { enforced: true }, "SCHEMA_CHECK_MISMATCH"],
+    ["check body drift", { checkClause: true }, "SCHEMA_CHK_PROJECTS_ROW_VERSION_MISMATCH"],
+    ["unenforced check drift", { enforced: true }, "SCHEMA_CHK_PROJECTS_STATUS_METADATA_MISMATCH"],
   ]) {
     test(`rejects ${name}`, async () => {
       await assert.rejects(verifySchema(metadataConnection(drift)), (error) => error.code === code);
