@@ -88,6 +88,9 @@ describe("schema verifier", () => {
     await verifySchema(metadataConnection());
     assert.equal(normalizeCheckClause(RAW_CHECKS.chk_projects_tier),
       normalizeCheckClause("tier IS NULL OR tier IN ('T1', 'T2', 'T3')"));
+    const escapedMetadata = "regexp_like(`id`,_utf8mb4\\'^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$\\',_utf8mb4\\'c\\')";
+    assert.equal(normalizeCheckClause(escapedMetadata),
+      normalizeCheckClause("REGEXP_LIKE(id, '^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$', 'c')"));
   });
 
   test("preserves semantically significant boolean grouping", () => {

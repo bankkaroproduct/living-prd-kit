@@ -140,7 +140,11 @@ function normalizeExtra(value) {
 }
 
 function normalizeCheckClause(value) {
-  const input = String(value || "").trim().replace(/`/g, "").replace(/_[a-z0-9]+(?=\s*')/gi, "");
+  // MySQL INFORMATION_SCHEMA can serialize literal delimiters as \\' even
+  // though CHECK_CLAUSE is already a returned string. Normalize only that
+  // delimiter form; every resulting literal value is still compared exactly.
+  const input = String(value || "").trim().replace(/\\'/g, "'")
+    .replace(/`/g, "").replace(/_[a-z0-9]+(?=\s*')/gi, "");
   const tokens = [];
   let index = 0;
 
