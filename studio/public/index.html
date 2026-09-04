@@ -259,6 +259,7 @@ async function flushPendingChanges(){
   for(let attempt=0;dirty&&attempt<3;attempt+=1){if(!await persist())return false;}
   return !dirty;
 }
+async function flushRenderedProject(project,id){return await flushPendingChanges()&&P===project&&projId===id;}
 function resetStrangerEvidence(){P.review.stranger={ran:"",defects:-1,report:""};}
 function resetSignatures(){P.review.signatures={pm:"",tech:"",qa:""};}
 function prepareMutation(kind="content"){
@@ -368,11 +369,15 @@ async function openProject(id){
   // Claude-hosted live-sync used — and apply version+data together in one step
   // so we can never end up "version-consistent" with data that never arrived.
   pollTimer=setInterval(async()=>{
-    if(!projId || dirty || Date.now()-lastLocalEdit<2500) return;
+    if(!projId||!P||dirty||saveInFlight||Date.now()-lastLocalEdit<2500) return;
+    const request={id:projId,project:P,version:rowVersion,editedAt:lastLocalEdit};
+    const stillCurrent=()=>projId===request.id&&P===request.project&&rowVersion===request.version&&
+      lastLocalEdit===request.editedAt&&!dirty&&!saveInFlight&&Date.now()-lastLocalEdit>=2500;
     try{
-      const res=await api("/api/projects/"+projId);
-      if(!res.ok) return;
+      const res=await api("/api/projects/"+request.id);
+      if(!res.ok||!stillCurrent()) return;
       const body=await res.json();
+      if(!stillCurrent()) return;
       if(body.version!==rowVersion){ P=body.data; rowVersion=body.version; render(); }
     }catch(e){ /* offline for a beat — next tick tries again */ }
   },4000);
@@ -677,6 +682,7 @@ function dodItems(){
 }
 function renderLock(body){
   const m=P.meta,r=P.review;
+  const renderedProject=P,renderedProjectId=projId;
   const frozen=completedGateMarker(m.g4);
 
   const c1=el(`<div class="card"><h2>Stranger test</h2><p class="hint"><b>Who: you + tech lead + QA — all three sign below.</b> An AI with no part in the build reads only your bundle and answers "what happens if…?" questions. Anything it can't answer is a gap in the bundle — fix the bundle, not the answer. Required to lock; the decision itself stays human.</p><div id="strOut"></div><ol id="strQuestions" class="note" style="padding-left:20px"></ol><p class="note">No AI is wired into this self-hosted copy. Open the Files tab in a fresh AI chat, ask the five questions above, then record only the count below.</p><label class="f" for="strDefects">Unanswerable questions / gaps</label><input type="number" id="strDefects" min="0" max="10000" step="1" inputmode="numeric" style="max-width:180px"><label class="choice"><input type="checkbox" id="strConfirm"><span><b>I ran a fresh-session test using only the Files bundle</b><br><span class="d">I fixed every reported gap represented by a zero count. I will not paste provider output, secrets, private URLs, or customer-derived data into Studio.</span></span></label><div class="btnrow"><button id="recordStr">Record this test run</button><span class="note">Studio stores only the date, gap count, and this fixed attestation.</span></div></div>`);
@@ -688,12 +694,16 @@ function renderLock(body){
     if(r.stranger.report) c1.querySelector("#strOut").appendChild(el(`<pre>${escH(r.stranger.report)}</pre>`));
   }
   c1.querySelector("#strDefects").value=r.stranger.defects<0?"":String(r.stranger.defects);
+  c1.querySelector("#strDefects").disabled=frozen;
+  c1.querySelector("#strConfirm").disabled=frozen;
+  c1.querySelector("#recordStr").disabled=frozen;
   c1.querySelector("#recordStr").addEventListener("click",async()=>{
+    if(frozen)return;
     const rawDefects=c1.querySelector("#strDefects").value.trim();
     const defects=/^(?:0|[1-9]\d{0,3}|10000)$/.test(rawDefects)?Number(rawDefects):NaN;
     if(!Number.isSafeInteger(defects)||defects<0||defects>10000){toast("Enter a whole-number gap count from 0 to 10,000");return;}
     if(!c1.querySelector("#strConfirm").checked){toast("Confirm that the fresh-session test was run");return;}
-    if(!await flushPendingChanges()){toast("Save current edits before recording evidence");return;}
+    if(!await flushRenderedProject(renderedProject,renderedProjectId)){toast("Save current edits before recording evidence");return;}
     const report=`External fresh-session stranger test attested; ${defects} unanswerable ${defects===1?"question":"questions"}.`;
     mutate(()=>{r.stranger={ran:today(),defects,report};},{kind:"stranger"});
     toast(defects===0?"Stranger test recorded as passed":"Gaps recorded — fix the bundle, then re-run");
@@ -704,7 +714,7 @@ function renderLock(body){
   for(const [label,ok] of dodItems()){
     c2.querySelector("#dod").appendChild(el(`<div class="check ${ok?"ok":"no"}"><span class="st">${ok?"✓":"·"}</span><span>${label}</span></div>`));
   }
-  const setM=(k,st,btn)=>{ const on=r.dodManual[k]; $(st).textContent=on?"✓":"·"; $(st).parentElement.className="check "+(on?"ok":"no"); $(btn).textContent=on?"Confirmed":"Confirm"; $(btn).onclick=()=>mutate(()=>r.dodManual[k]=!r.dodManual[k],{kind:"workflow"}); };
+  const setM=(k,st,btn)=>{ const on=r.dodManual[k]; $(st).textContent=on?"✓":"·"; $(st).parentElement.className="check "+(on?"ok":"no"); $(btn).textContent=on?"Confirmed":"Confirm"; $(btn).disabled=frozen; $(btn).onclick=async()=>{if(frozen)return;if(!await flushRenderedProject(renderedProject,renderedProjectId)){toast("Save current edits before confirming lock evidence");return;}mutate(()=>r.dodManual[k]=!r.dodManual[k],{kind:"workflow"});}; };
   setM("secrets","ms1","mb1"); setM("runzero","ms2","mb2");
 
   const c3=el(`<div class="card"><h2>Three signatures</h2><p class="hint">Recorded here for the test run. In the repo flow, the binding copy is the three GitHub approvals — this screen mirrors it.</p><div id="sigs"></div></div>`);
@@ -717,7 +727,7 @@ function renderLock(body){
     b.disabled=!!signed||frozen&&!signed;
     b.addEventListener("click",async()=>{
       b.disabled=true;
-      if(!await flushPendingChanges()){b.disabled=false;toast("Save current review evidence before signing");return;}
+      if(!await flushRenderedProject(renderedProject,renderedProjectId)){b.disabled=false;toast("Save current review evidence before signing");return;}
       mutate(()=>r.signatures[k]=today()+" "+(name||k),{kind:"signature"});
     });
     row.appendChild(b);
@@ -734,7 +744,7 @@ function renderLock(body){
     const b=el(`<button class="primary" ${allDod&&allSig?"":"disabled"}>Freeze this version</button>`);
     b.addEventListener("click",async()=>{
       b.disabled=true;
-      if(!await flushPendingChanges()){b.disabled=false;toast("Save evidence and signatures before freezing");return;}
+      if(!await flushRenderedProject(renderedProject,renderedProjectId)){b.disabled=false;toast("Save evidence and signatures before freezing");return;}
       const before=canonicalJson(P);
       const snapshot=JSON.parse(before);
       snapshot.meta.g4=today(); snapshot.meta.g6=""; snapshot.meta.status="frozen";

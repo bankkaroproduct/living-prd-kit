@@ -233,6 +233,12 @@ describe("HTTP and authentication", () => {
     assert.match(html, /id="strConfirm"/);
     assert.match(html, /id="recordStr"/);
     assert.doesNotMatch(html, /id="strReport"|type="file"/);
+    assert.match(html, /querySelector\("#recordStr"\)\.disabled=frozen/);
+    assert.match(html, /Save current edits before confirming lock evidence/);
+    const pollSource = html.slice(html.indexOf("pollTimer=setInterval"), html.indexOf("},4000);"));
+    assert.match(pollSource, /request=\{id:projId,project:P,version:rowVersion,editedAt:lastLocalEdit\}/);
+    assert.match(pollSource, /api\("\/api\/projects\/"\+request\.id\)/);
+    assert.equal((pollSource.match(/stillCurrent\(\)/g) || []).length, 2);
     assert.doesNotMatch(html, /fonts\.googleapis|localStorage|sessionStorage/);
     assert.doesNotMatch(html, /__CSP_NONCE__|__PRD_STUDIO_RUNTIME_CONFIG__/);
   });
@@ -265,7 +271,7 @@ describe("HTTP and authentication", () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf8");
     assert.match(source, /window\.confirm\("Someone else saved this PRD first/);
     assert.doesNotMatch(source, /return persist\(1\)|persist\(attempt\)/);
-    assert.match(source, /if\(!projId \|\| dirty \|\| Date\.now\(\)-lastLocalEdit<2500\) return/);
+    assert.match(source, /if\(!projId\|\|!P\|\|dirty\|\|saveInFlight\|\|Date\.now\(\)-lastLocalEdit<2500\) return/);
     assert.match(source, /catch\(e\)\{ dirty=true;/);
   });
 
@@ -398,6 +404,21 @@ describe("project API", () => {
     changedWhileFreezing.meta.title = "Changed in the freeze request";
     changedWhileFreezing.review.digest = computeFreezeDigest(changedWhileFreezing);
     assert.match(validateFreezeTransition(signed, changedWhileFreezing), /fingerprint is invalid/);
+
+    const invalidFrozenRerun = structuredClone(frozen);
+    invalidFrozenRerun.meta.g4 = "";
+    invalidFrozenRerun.meta.status = "building";
+    invalidFrozenRerun.review.digest = "";
+    invalidFrozenRerun.review.releaseNum = 2;
+    invalidFrozenRerun.review.dodManual = { secrets: false, runzero: false };
+    invalidFrozenRerun.review.signatures = { pm: "", tech: "", qa: "" };
+    invalidFrozenRerun.review.reconcile = {};
+    invalidFrozenRerun.review.eventAudit = false;
+    invalidFrozenRerun.review.mocksVerified = false;
+    invalidFrozenRerun.review.stranger = {
+      ran: "2026-09-05", defects: 0, report: "Attempted in the unfreeze request.",
+    };
+    assert.match(validateFreezeTransition(frozen, invalidFrozenRerun), /clean, incremented release/);
 
     const shortcutFreeze = project("Shortcut freeze");
     shortcutFreeze.meta.g4 = "2026-09-04";
