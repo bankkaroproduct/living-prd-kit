@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "policy_id": "prd-studio-canonical-absence-policy",
+  "version": "1.0.0",
+  "component_id": "prd-studio",
+  "classification": "reset_to_empty",
+  "semantic_identity": "canonical-absence",
+  "parent_binding": "required-at-artifact-build",
+  "absence_artifact_binding": "required-at-artifact-build",
+  "required_absence": {
+    "current_link": "/opt/prd-studio/current",
+    "systemd_unit": "/etc/systemd/system/prd-studio.service",
+    "release_environment": "/etc/prd-studio/release.env",
+    "unix_socket": "/run/prd-studio/http.sock",
+    "write_fence_directory": "/var/lib/prd-studio/deployment-control",
+    "database": "prd_studio"
+  },
+  "rollback_policy": {
+    "write_fence_before_recovery": true,
+    "database_drop_guard": "exact-empty-or-certified-synthetic-only",
+    "unexpected_data_action": "incident_recovery_only",
+    "target_seconds": 120
+  }
+}

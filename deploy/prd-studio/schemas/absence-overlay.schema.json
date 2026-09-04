@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bankkaro.com/schemas/prd-studio-absence-overlay-v1.json",
+  "title": "PRD Studio canonical-absence rollback overlay",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "overlay_id", "version", "component_id", "classification", "semantic_identity", "parent", "absence_artifact_sha256", "required_absence", "rollback_policy"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "overlay_id": {"const": "prd-studio-canonical-absence"},
+    "version": {"const": "1.0.0"},
+    "component_id": {"const": "prd-studio"},
+    "classification": {"const": "reset_to_empty"},
+    "semantic_identity": {"const": "canonical-absence"},
+    "parent": {
+      "type": "object", "additionalProperties": false, "required": ["commit", "tree"],
+      "properties": {
+        "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "tree": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+      }
+    },
+    "absence_artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "required_absence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["current_link", "systemd_unit", "release_environment", "unix_socket", "write_fence_directory", "database"],
+      "properties": {
+        "current_link": {"const": "/opt/prd-studio/current"},
+        "systemd_unit": {"const": "/etc/systemd/system/prd-studio.service"},
+        "release_environment": {"const": "/etc/prd-studio/release.env"},
+        "unix_socket": {"const": "/run/prd-studio/http.sock"},
+        "write_fence_directory": {"const": "/var/lib/prd-studio/deployment-control"},
+        "database": {"const": "prd_studio"}
+      }
+    },
+    "rollback_policy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["write_fence_before_recovery", "database_drop_guard", "unexpected_data_action", "target_seconds"],
+      "properties": {
+        "write_fence_before_recovery": {"const": true},
+        "database_drop_guard": {"const": "exact-empty-or-certified-synthetic-only"},
+        "unexpected_data_action": {"const": "incident_recovery_only"},
+        "target_seconds": {"type": "integer", "minimum": 1, "maximum": 180}
+      }
+    }
+  }
+}

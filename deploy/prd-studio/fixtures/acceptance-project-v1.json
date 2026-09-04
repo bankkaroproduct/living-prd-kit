@@ -1,0 +1,63 @@
+{
+  "schema_version": "1.0",
+  "fixture_id": "prd-studio-synthetic-crud-v1",
+  "project_id_prefix": "deploy-smoke-",
+  "create": {
+    "slug": "deployment-smoke",
+    "data": {
+      "meta": {
+        "title": "Synthetic deployment smoke",
+        "owner": "automation",
+        "tech": "automation",
+        "qa": "automation",
+        "designer": "automation",
+        "tier": "T3",
+        "status": "framing",
+        "created": "2026-01-01",
+        "data": "synthetic",
+        "pipeline": "deployment acceptance",
+        "dumpdate": "",
+        "entry": "synthetic fixture",
+        "run": "bounded",
+        "g0": "pass",
+        "g1": "pass",
+        "g2": "pass",
+        "g3": "pass",
+        "g4": "pass",
+        "g6": "pass",
+        "triggers": []
+      },
+      "spec": {
+        "outcome": "Verify bounded synthetic CRUD",
+        "nonGoals": "No user or provider data",
+        "metrics": "One create, read, update, read and guarded cleanup",
+        "constraints": "Synthetic fixture only",
+        "assumptions": "Protected staging",
+        "dependencies": "MySQL",
+        "screens": [{"name": "Synthetic", "purpose": "Deployment acceptance", "fields": [{"f": "title", "fmt": "text", "err": "none", "req": true}]}],
+        "scenarios": [{"id": "S1", "name": "Smoke", "trigger": "Deployment", "demonstrable": true, "nd": false, "ndreason": ""}],
+        "edges": [{"sid": "S1", "caseTxt": "Synthetic", "expected": "Pass"}],
+        "events": [{"name": "synthetic_smoke", "trigger": "deployment", "props": "none", "fires": true}],
+        "fidelity": [{"path": "/prd-studio/", "label": "REAL", "note": "Synthetic only"}]
+      },
+      "review": {
+        "objections": [],
+        "coverageAgreed": "yes",
+        "coverageBy": "automation",
+        "techChecks": {"feasibility": true, "integrations": true, "dataBoundaries": true, "reuse": true},
+        "qaChecks": {"states": true, "validations": true, "errorsRetries": true, "testability": true},
+        "dodManual": {"secrets": true, "runzero": true},
+        "stranger": {"ran": "synthetic", "report": "synthetic", "defects": 0},
+        "signatures": {"pm": "automation", "tech": "automation", "qa": "automation"},
+        "releaseNum": 1,
+        "reconcile": {},
+        "eventAudit": true,
+        "mocksVerified": true
+      }
+    }
+  },
+  "update": {
+    "title": "Synthetic deployment smoke updated",
+    "status": "building"
+  }
+}

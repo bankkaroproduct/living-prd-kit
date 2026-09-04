@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bankkaro.com/schemas/prd-studio-private-connection-profile-v1.json",
+  "title": "Private PRD Studio protected-staging connection profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "profile_id", "environment", "ssh", "remote", "configuration", "managed_targets", "route", "out_of_scope", "preflight_certificate", "day2_backup_recovery"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "profile_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,79}$"},
+    "environment": {"const": "protected-staging"},
+    "ssh": {
+      "type": "object", "additionalProperties": false,
+      "required": ["target", "port", "identity_file", "identity_sha256", "known_hosts_file", "known_hosts_sha256"],
+      "properties": {
+        "target": {"type": "string", "pattern": "^[A-Za-z0-9_.:@-]{1,255}$"},
+        "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "identity_file": {"type": "string", "pattern": "^/"},
+        "identity_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "known_hosts_file": {"type": "string", "pattern": "^/"},
+        "known_hosts_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "remote": {
+      "type": "object", "additionalProperties": false,
+      "required": ["nginx_include_path", "nginx_http_include_path", "nginx_worker_user", "nginx_worker_group", "nginx_tls_server_path", "nginx_http_parent_path", "nginx_tls_server_anchor", "nginx_http_parent_anchor", "nginx_auth_file", "mysql_socket_path", "mysql_socket_identity", "mysql_server_uuid_sha256", "authorization_header_file", "tls_ca_file", "expected_absence_status", "machine_id_sha256"],
+      "properties": {
+        "nginx_include_path": {"type": "string", "pattern": "^/etc/nginx/"},
+        "nginx_http_include_path": {"type": "string", "pattern": "^/etc/nginx/"},
+        "nginx_worker_user": {"type": "string", "pattern": "^[a-z_][a-z0-9_-]{0,31}$"},
+        "nginx_worker_group": {"type": "string", "pattern": "^[a-z_][a-z0-9_-]{0,31}$"},
+        "nginx_tls_server_path": {"type": "string", "pattern": "^/etc/nginx/"},
+        "nginx_http_parent_path": {"type": "string", "pattern": "^/etc/nginx/"},
+        "nginx_tls_server_anchor": {"type": "string", "minLength": 1, "maxLength": 256},
+        "nginx_http_parent_anchor": {"type": "string", "minLength": 1, "maxLength": 256},
+        "nginx_auth_file": {"type": "string", "pattern": "^/etc/nginx/"},
+        "mysql_socket_path": {"type": "string", "pattern": "^/run/"},
+        "mysql_server_uuid_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "mysql_socket_identity": {
+          "type": "object", "additionalProperties": false,
+          "required": ["uid", "gid", "mode", "parent_uid", "parent_gid", "parent_mode"],
+          "properties": {
+            "uid": {"type": "integer", "minimum": 0}, "gid": {"type": "integer", "minimum": 0},
+            "mode": {"type": "string", "pattern": "^0[0-7]{3}$"},
+            "parent_uid": {"type": "integer", "minimum": 0}, "parent_gid": {"type": "integer", "minimum": 0},
+            "parent_mode": {"type": "string", "pattern": "^0[0-7]{3}$"}
+          }
+        },
+        "authorization_header_file": {"type": "string", "pattern": "^/etc/"},
+        "tls_ca_file": {"type": "string", "pattern": "^/etc/"},
+        "expected_absence_status": {"enum": [404, 410]}
+        ,"machine_id_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "configuration": {
+      "type": "array", "minItems": 6, "maxItems": 16,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "path", "sha256", "uid", "gid", "mode"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,79}$"},
+          "path": {"type": "string", "pattern": "^/"},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "uid": {"type": "integer", "minimum": 0},
+          "gid": {"type": "integer", "minimum": 0},
+          "mode": {"type": "string", "pattern": "^0[0-7]{3}$"}
+        }
+      }
+    },
+    "managed_targets": {
+      "type": "array", "minItems": 3, "maxItems": 3,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "path", "expected_state"],
+        "properties": {
+          "id": {"enum": ["systemd-unit", "nginx-location-include", "nginx-http-include"]},
+          "path": {"type": "string", "pattern": "^/"},
+          "expected_state": {"const": "absent"}
+        }
+      }
+    },
+    "route": {
+      "type": "object", "additionalProperties": false, "required": ["base_url"],
+      "properties": {"base_url": {"type": "string", "pattern": "^https://[^/?#]+/prd-studio$"}}
+    },
+    "out_of_scope": {
+      "type": "array", "minItems": 1, "maxItems": 16,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["id", "path", "sha256"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,79}$"},
+          "path": {"type": "string", "pattern": "^/"},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "preflight_certificate": {
+      "type": "object", "additionalProperties": false, "required": ["path", "sha256"],
+      "properties": {
+        "path": {"type": "string", "pattern": "^/"},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "day2_backup_recovery": {
+      "type": "object", "additionalProperties": false, "required": ["path", "sha256"],
+      "properties": {
+        "path": {"type": "string", "pattern": "^/"},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    }
+  }
+}

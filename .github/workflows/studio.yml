@@ -1,0 +1,278 @@
+name: PRD Studio
+
+on:
+  pull_request:
+    paths:
+      - "studio/**"
+      - "deploy/prd-studio/**"
+      - ".github/workflows/studio.yml"
+  push:
+    paths:
+      - "studio/**"
+      - "deploy/prd-studio/**"
+      - ".github/workflows/studio.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  exact-sha-linux:
+    name: Exact-SHA Linux / ${{ matrix.display_name }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - display_name: MySQL 8.0.46 target
+            evidence_id: mysql-8.0.46-target
+            mysql_image: mysql:8.0.46@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b
+          - display_name: MySQL 8.4.6 compatibility
+            evidence_id: mysql-8.4.6-compatibility
+            mysql_image: mysql:8.4.6@sha256:869218921e61d6c3c89820955d63cca42971f0e3e6c1e2792247bbd944ebc6e9
+    env:
+      CI: "true"
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+      MYSQL_EVIDENCE_ID: ${{ matrix.evidence_id }}
+      PYTHONHASHSEED: "0"
+      SOURCE_DATE_EPOCH: "0"
+      TZ: UTC
+    services:
+      mysql:
+        image: ${{ matrix.mysql_image }}
+        env:
+          MYSQL_DATABASE: prd_studio_test
+          MYSQL_USER: prd_studio_test
+          MYSQL_PASSWORD: ci-only-password
+          MYSQL_ROOT_PASSWORD: ci-only-root-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="MYSQL_PWD=ci-only-root-password mysqladmin ping --protocol=SOCKET -uroot"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+
+    steps:
+      # Pin action commits so exact-SHA CI evidence is reproducible.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.22.2
+          cache: npm
+          cache-dependency-path: studio/package-lock.json
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: 3.12.11
+
+      - name: Bind the job to the event's exact commit
+        env:
+          CANDIDATE_COMMIT: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse --verify 'HEAD^{commit}')" = "$CANDIDATE_COMMIT"
+          case "$CANDIDATE_COMMIT" in
+            (*[!0-9a-f]*|'') exit 1 ;;
+          esac
+          test "${#CANDIDATE_COMMIT}" -eq 40
+          git diff --exit-code
+          git diff --cached --exit-code
+          mkdir -p ci-dist
+
+      - name: Enforce immutable workflow dependencies
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          import re
+
+          workflow = pathlib.Path(".github/workflows/studio.yml").read_text(encoding="utf-8")
+          uses = re.findall(r"^\s*-\s+uses:\s+(\S+)\s*$", workflow, flags=re.MULTILINE)
+          if not uses or any(re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_./-]+@[0-9a-f]{40}", item) is None for item in uses):
+              raise SystemExit("action reference pinning: FAIL")
+          image_expression = "${" + "{ matrix.mysql_image }}"
+          images = re.findall(r"^\s+image:\s+(.+?)\s*$", workflow, flags=re.MULTILINE)
+          if images != [image_expression]:
+              raise SystemExit("service image selection: FAIL")
+          matrix_images = re.findall(r"^\s+mysql_image:\s+(\S+)\s*$", workflow, flags=re.MULTILINE)
+          expected_images = [
+              "mysql:8.0.46@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b",
+              "mysql:8.4.6@sha256:869218921e61d6c3c89820955d63cca42971f0e3e6c1e2792247bbd944ebc6e9",
+          ]
+          if matrix_images != expected_images:
+              raise SystemExit("service image pinning: FAIL")
+          print("immutable workflow dependencies: PASS")
+          PY
+
+      - name: Fail closed on committed credential material
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          import re
+          import os
+          import stat
+          import subprocess
+          import sys
+
+          roots = ("studio/", "deploy/prd-studio/")
+          forbidden_names = re.compile(
+              rb"(?:^|/)(?:\.env(?:\.(?!example$)[^/]*)?|id_(?:rsa|ecdsa|ed25519)|[^/]+\.(?:key|p12|pfx))$",
+              re.IGNORECASE,
+          )
+          credential_patterns = (
+              re.compile(rb"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
+              re.compile(rb"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"),
+              re.compile(rb"\bgh(?:p|o|u|s|r)_[A-Za-z0-9]{36,}\b"),
+              re.compile(rb"\bgithub_pat_[A-Za-z0-9_]{60,}\b"),
+              re.compile(rb"\bxox(?:b|p|a|r|s)-[A-Za-z0-9-]{20,}\b"),
+              re.compile(rb"\bAIza[0-9A-Za-z_-]{35}\b"),
+              re.compile(
+                  rb"(?i)(?:api[_-]?key|client[_-]?secret|password|access[_-]?token)\s*[:=]\s*['\"][^'\"\s]{8,}"
+              ),
+          )
+
+          raw_paths = subprocess.check_output(["git", "ls-files", "-z", *roots])
+          paths = [path for path in raw_paths.split(b"\0") if path]
+          failed = False
+          for raw_path in paths:
+              if forbidden_names.search(raw_path):
+                  failed = True
+                  continue
+              path = pathlib.Path(os.fsdecode(raw_path))
+              try:
+                  before = path.lstat()
+                  if not stat.S_ISREG(before.st_mode) or before.st_size > 5 * 1024 * 1024:
+                      failed = True
+                      continue
+                  descriptor = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+                  try:
+                      opened = os.fstat(descriptor)
+                      if (not stat.S_ISREG(opened.st_mode) or opened.st_dev != before.st_dev
+                              or opened.st_ino != before.st_ino or opened.st_size != before.st_size):
+                          failed = True
+                          continue
+                      blocks = []
+                      remaining = 5 * 1024 * 1024 + 1
+                      while remaining:
+                          block = os.read(descriptor, min(65536, remaining))
+                          if not block:
+                              break
+                          blocks.append(block)
+                          remaining -= len(block)
+                      data = b"".join(blocks)
+                      if len(data) != opened.st_size:
+                          failed = True
+                          continue
+                  finally:
+                      os.close(descriptor)
+              except OSError:
+                  failed = True
+                  continue
+              if any(pattern.search(data) for pattern in credential_patterns):
+                  failed = True
+          if failed:
+              print("credential-pattern scan: FAIL", file=sys.stderr)
+              raise SystemExit(1)
+          print("credential-pattern scan: PASS")
+          PY
+
+      - name: Install the exact production dependency graph
+        working-directory: studio
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Audit production dependencies
+        working-directory: studio
+        run: npm audit --omit=dev --audit-level=high --json > "../ci-dist/npm-audit-$MYSQL_EVIDENCE_ID.json"
+
+      - name: Offline-only deployment package checks (not release certification)
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s deploy/prd-studio/tests -v
+          python3 deploy/prd-studio/tools/build_runner.py \
+            --output ci-dist/prd-studio-deploy-a.pyz \
+            > ci-dist/runner-build-a.json
+          python3 deploy/prd-studio/tools/build_runner.py \
+            --output ci-dist/prd-studio-deploy-b.pyz \
+            > ci-dist/runner-build-b.json
+          cmp ci-dist/prd-studio-deploy-a.pyz ci-dist/prd-studio-deploy-b.pyz
+          ci-dist/prd-studio-deploy-a.pyz --version
+          set +e
+          ci-dist/prd-studio-deploy-a.pyz execute \
+            --packet ci-dist/must-not-exist/packet \
+            --profile ci-dist/must-not-exist/profile.json \
+            --approval ci-dist/must-not-exist/approval.json \
+            --attempt-dir ci-dist/must-not-exist/attempt \
+            > ci-dist/runner-execution-disabled.json
+          status=$?
+          set -e
+          test "$status" -eq 2
+          python3 - <<'PY'
+          import json
+          import pathlib
+
+          result = json.loads(pathlib.Path("ci-dist/runner-execution-disabled.json").read_text())
+          if result != {"reason_code": "RUNNER_EXECUTION_NOT_CERTIFIED", "status": "ERROR"}:
+              raise SystemExit("fail-closed runner result: FAIL")
+          if pathlib.Path("ci-dist/must-not-exist").exists():
+              raise SystemExit("fail-before-input boundary: FAIL")
+          print("offline runner boundary: PASS")
+          PY
+
+      - name: Apply schema and prove idempotence
+        working-directory: studio
+        env:
+          MIGRATION_DB_HOST: 127.0.0.1
+          MIGRATION_DB_PORT: "3306"
+          MIGRATION_DB_USER: prd_studio_test
+          MIGRATION_DB_PASSWORD: ci-only-password
+          MIGRATION_DB_NAME: prd_studio_test
+          MIGRATION_DB_SSL_MODE: disabled
+        run: |
+          set -euo pipefail
+          npm run schema:apply 2>&1 | tee "../ci-dist/schema-apply-first-$MYSQL_EVIDENCE_ID.log"
+          npm run schema:apply 2>&1 | tee "../ci-dist/schema-apply-idempotent-$MYSQL_EVIDENCE_ID.log"
+
+      - name: Provision the exact least-privilege runtime account
+        env:
+          MYSQL_PWD: ci-only-root-password
+          MYSQL_SERVICE_CONTAINER: ${{ job.services.mysql.id }}
+        run: |
+          set -euo pipefail
+          test -n "$MYSQL_SERVICE_CONTAINER"
+          result="$(
+            docker exec --env MYSQL_PWD -i "$MYSQL_SERVICE_CONTAINER" \
+              mysql --protocol=SOCKET --user=root \
+              --batch --skip-column-names <<'SQL'
+          SET GLOBAL sql_mode = CASE
+            WHEN FIND_IN_SET('NO_BACKSLASH_ESCAPES', @@GLOBAL.sql_mode) > 0 THEN @@GLOBAL.sql_mode
+            WHEN @@GLOBAL.sql_mode = '' THEN 'NO_BACKSLASH_ESCAPES'
+            ELSE CONCAT(@@GLOBAL.sql_mode, ',NO_BACKSLASH_ESCAPES')
+          END;
+          CREATE USER 'prd_studio_runtime_ci'@'%' IDENTIFIED BY 'ci-only-runtime-password';
+          GRANT SELECT ON `prd_studio_test`.`schema_versions` TO 'prd_studio_runtime_ci'@'%';
+          GRANT SELECT, INSERT, UPDATE ON `prd_studio_test`.`projects` TO 'prd_studio_runtime_ci'@'%';
+          SELECT IF(FIND_IN_SET('NO_BACKSLASH_ESCAPES', @@GLOBAL.sql_mode), 'mode-ok', 'mode-fail');
+          SQL
+          )"
+          test "$result" = "mode-ok"
+
+      - name: Unit, API, and MySQL integration tests
+        working-directory: studio
+        env:
+          MYSQL_INTEGRATION: "1"
+          DB_HOST: 127.0.0.1
+          DB_PORT: "3306"
+          DB_USER: prd_studio_runtime_ci
+          DB_PASSWORD: ci-only-runtime-password
+          DB_NAME: prd_studio_test
+          MYSQL_CLEANUP_USER: prd_studio_test
+          MYSQL_CLEANUP_PASSWORD: ci-only-password
+        run: |
+          set -euo pipefail
+          npm test 2>&1 | tee "../ci-dist/app-test-$MYSQL_EVIDENCE_ID.log"

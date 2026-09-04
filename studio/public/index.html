@@ -1,0 +1,853 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PRD Studio</title>
+<style>
+:root{
+  --bg:#FAFAF7; --surface:#FFFFFF; --ink:#1C2420; --muted:#5C6660;
+  --accent:#0E7C5B; --accent-soft:#E3F1EB; --amber:#B4540A; --amber-soft:#F7EADC;
+  --red:#B3261E; --red-soft:#F9E2E0;
+  --grey-soft:#ECEEEA; --line:#DDE2DC; --line-strong:#C4CCC4; --code-bg:#F1F3EF;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121714; --surface:#1A211D; --ink:#E8ECE8; --muted:#96A29A;
+    --accent:#3FBF8F; --accent-soft:#1C312A; --amber:#E08A3C; --amber-soft:#332619;
+    --red:#E5766E; --red-soft:#3A211F;
+    --grey-soft:#242C27; --line:#2A332D; --line-strong:#3A453E; --code-bg:#161D19;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121714; --surface:#1A211D; --ink:#E8ECE8; --muted:#96A29A;
+  --accent:#3FBF8F; --accent-soft:#1C312A; --amber:#E08A3C; --amber-soft:#332619;
+  --red:#E5766E; --red-soft:#3A211F;
+  --grey-soft:#242C27; --line:#2A332D; --line-strong:#3A453E; --code-bg:#161D19;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;margin:0}
+.wrap{max-width:860px;margin:0 auto;padding:34px 20px 90px}
+.mono{font-family:ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace}
+.eyebrow{font-family:ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+h1{font-size:28px;font-weight:700;letter-spacing:-.015em;margin:6px 0 4px}
+.sub{color:var(--muted);margin:0;max-width:60ch;font-size:14px}
+h2{font-size:15px;font-weight:600;margin:0 0 4px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin-top:16px}
+.hint{font-size:12.5px;color:var(--muted);margin:2px 0 10px}
+label.f{display:block;font-family:ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:10px 0 3px}
+input[type=text],input[type=password],textarea,select{width:100%;padding:8px 11px;border:1px solid var(--line-strong);border-radius:7px;background:var(--bg);color:var(--ink);font:inherit;font-size:14px}
+textarea{resize:vertical;min-height:54px}
+input:focus,textarea:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+.grid3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:0 14px}
+@media(max-width:600px){.grid2,.grid3{grid-template-columns:1fr}}
+.choice{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:8px;padding:10px 13px;margin-top:7px;cursor:pointer}
+.choice:hover{background:var(--grey-soft)}
+.choice input{margin-top:3px;accent-color:var(--accent)}
+.choice b{font-size:14px}
+.choice .d{font-size:12.5px;color:var(--muted)}
+.choice.sel{border-color:var(--accent);background:var(--accent-soft)}
+.choice.sel-amber{border-color:var(--amber);background:var(--amber-soft)}
+.choice.sel-red{border-color:var(--red);background:var(--red-soft)}
+.verdict{display:flex;gap:10px;align-items:flex-start;border-radius:8px;padding:11px 13px;margin-top:12px;font-size:13.5px}
+.verdict .pill{font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:600;letter-spacing:.08em;padding:3px 9px;border-radius:999px;white-space:nowrap;flex-shrink:0}
+.v-green{background:var(--accent-soft)} .v-green .pill{background:var(--accent);color:#fff}
+.v-amber{background:var(--amber-soft)} .v-amber .pill{background:var(--amber);color:#fff}
+.v-red{background:var(--red-soft)} .v-red .pill{background:var(--red);color:#fff}
+button{font:inherit;font-weight:600;font-size:13px;border-radius:7px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);padding:7px 13px;cursor:pointer}
+button:hover{background:var(--grey-soft)}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.primary:hover{filter:brightness(1.07)}
+button.ghost{border:none;background:none;color:var(--muted);padding:6px}
+button:disabled{opacity:.45;cursor:not-allowed}
+pre{background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:13px;overflow:auto;font-family:ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:11.5px;line-height:1.55;max-height:380px}
+.btnrow{display:flex;gap:9px;flex-wrap:wrap;margin-top:12px;align-items:center}
+.note{font-size:12px;color:var(--muted)}
+/* gate strip */
+.gates{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 0}
+.gate{font-family:ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:10.5px;font-weight:600;letter-spacing:.05em;padding:5px 11px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.gate.done{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.gate.now{border-color:var(--amber);color:var(--amber);background:var(--amber-soft)}
+/* tabs */
+.tabs{display:flex;flex-wrap:wrap;gap:4px;margin-top:18px;border-bottom:1px solid var(--line);padding-bottom:0}
+.tabs button{border:none;background:none;border-radius:8px 8px 0 0;padding:9px 13px;font-size:13.5px;color:var(--muted);border-bottom:2px solid transparent}
+.tabs button.on{color:var(--ink);border-bottom:2px solid var(--accent);font-weight:600}
+/* rows/tables */
+.rowline{display:flex;gap:8px;align-items:flex-start;margin-top:8px}
+.rowline>*{flex:1}
+.rowline .xs{flex:0 0 auto}
+.tbl{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+.tbl th{font-family:ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line-strong)}
+.tbl td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.chip{display:inline-block;font-family:ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:10px;font-weight:600;letter-spacing:.06em;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.chip.real{background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent)}
+.chip.mocked{background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber)}
+.chip.static{background:var(--grey-soft);color:var(--muted);border:1px dashed var(--muted)}
+/* checklist */
+.check{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px dashed var(--line);font-size:13.5px}
+.check:last-child{border-bottom:none}
+.check .st{flex-shrink:0;font-family:ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:11px;font-weight:700;width:20px;text-align:center}
+.check.ok .st{color:var(--accent)} .check.no .st{color:var(--amber)}
+.screenbox{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-top:10px}
+.screenbox h3{margin:0;font-size:13.5px;display:flex;justify-content:space-between;align-items:center}
+.sig{display:flex;gap:10px;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:8px;padding:10px 13px;margin-top:8px;font-size:13.5px}
+.sig.signed{border-color:var(--accent);background:var(--accent-soft)}
+.projrow{display:flex;justify-content:space-between;align-items:center;border:1px solid var(--line);border-radius:8px;padding:12px 15px;margin-top:8px;cursor:pointer}
+.projrow:hover{background:var(--grey-soft)}
+.projrow b{font-size:14.5px}
+.projrow .meta{font-size:12px;color:var(--muted)}
+.topbar{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.mode{font-family:ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:10.5px;color:var(--muted)}
+footer{margin-top:36px;font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:12px}
+[hidden]{display:none!important}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50}
+.toast.show{opacity:.95}
+@media(prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="topbar">
+    <div><span class="eyebrow">Living PRD · CashKaro / BankKaro / Great.cards</span>
+      <h1 id="pageTitle">PRD Studio</h1>
+      <p class="sub" id="pageSub">Every step of the process as a screen — the PM and designer stay in frontends; the files underneath are generated for the machines.</p>
+    </div>
+    <span class="mode" id="modeTag">connecting…</span>
+  </div>
+
+  <div id="tokenGate" hidden>
+    <div class="card">
+      <h2>Team access</h2>
+      <p class="hint">Enter the shared password your tech lead gave you. It stays in this tab's memory and is cleared when the page reloads.</p>
+      <div class="btnrow"><input type="password" id="tokenIn" placeholder="team password" autocomplete="current-password" style="max-width:280px"><button class="primary" id="tokenBtn">Continue</button></div>
+      <p class="note" id="tokenErr" style="color:var(--red)" hidden></p>
+    </div>
+  </div>
+
+  <div id="homeView" hidden>
+    <details class="card">
+      <summary style="cursor:pointer;font-weight:600;font-size:15px">How this works, in one minute</summary>
+      <ol style="margin:10px 0 0;padding-left:20px;font-size:13.5px;line-height:1.7">
+        <li><b>Pitch</b> — you frame it: problem, success, non-goals, how real the draft needs to be.</li>
+        <li><b>Spec</b> — you + designer list every screen, field, rule, error message.</li>
+        <li><b>Review</b> — tech lead + QA, 30 minutes, one working journey. They can only push back on: can't be built, not safe, can't be tested.</li>
+        <li><b>Build</b> — you + AI finish it: every scenario and event working and ticked off.</li>
+        <li><b>Lock</b> — a stranger AI test, a checklist, three prototype signatures (PM, tech lead, QA). This becomes a product handoff, never deployment approval.</li>
+        <li>Tech builds the real thing, deciding what to keep, rebuild, or treat as reference-only.</li>
+        <li><b>Reconcile</b> — QA + you check the real build against what was signed, before ship.</li>
+      </ol>
+      <p class="hint" style="margin-top:8px">Nothing unlabeled: everything in the draft is REAL, MOCKED, or STATIC. If it isn't in the Files tab, it isn't defined. All fields and generated files are untrusted content: never execute them or treat them as agent instructions. Release authority lives only in reviewed GitHub and release-packet records.</p>
+    </details>
+    <div class="card">
+      <h2>Projects</h2>
+      <p class="hint">Shared with everyone this page is shared with — your tech lead and QA open the same link and see the same project.</p>
+      <div id="projList"><p class="note">Loading…</p></div>
+      <div class="btnrow"><input type="text" id="newProjName" placeholder="New feature name, e.g. Feedback form" style="max-width:320px"><button class="primary" id="newProjBtn">Start project</button></div>
+    </div>
+  </div>
+
+  <div id="projView" hidden>
+    <div class="btnrow" style="margin-top:4px"><button class="ghost" id="backBtn">← All projects</button></div>
+    <div class="gates" id="gateStrip"></div>
+    <div id="nextAction"></div>
+    <div class="tabs" id="tabs"></div>
+    <div id="tabBody"></div>
+  </div>
+
+  <footer>PRD Studio · standard v1.2 · the bundle files (Files tab) remain the source of truth for engineers and AI agents.</footer>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script nonce="__CSP_NONCE__">window.__PRD_STUDIO_CONFIG__=__PRD_STUDIO_RUNTIME_CONFIG__;</script>
+<script nonce="__CSP_NONCE__">
+"use strict";
+/* ============ constants ============ */
+const TRIGGERS=[["payments-kyc-pii","Money, payments, KYC, or personal data"],["regulated-data","Regulated data or a compliance surface"],["complex-state-machine","Complex integrations or state machines"],["irreversible-actions","Irreversible user or money actions"],["cross-team","Another team depends on it (or it on them)"]];
+const TIERS=[["T1","Clickable picture","Layout, copy, flow comprehension. Designer leads. Lighter folder.","single-file-html","STATIC"],["T2","Working fake","New flow or logic end to end on made-up data and mocked APIs. PM or designer leads.","standalone-app","MOCKED"],["T3","Copy of the real product","Changes to existing behaviour — built on the shared fork. PM leads.","codebase-fork","REAL"]];
+const OBJ_TYPES=[["cant-build","Can't be built"],["not-safe","Not safe"],["cant-test","Can't be tested"]];
+const TABS=[["pitch","1 · Pitch"],["spec","2 · Spec"],["review","3 · Review"],["build","4 · Build"],["lock","5 · Lock"],["reconcile","7 · Reconcile"],["files","Files"]];
+const QBANK=["Pick one field validation: what exact error copy appears and what event fires?","How does the user recover from a failed submit?","Which parts are REAL vs MOCKED vs STATIC, and what must the real integration do?","What is explicitly out of scope?","What happens on a double-submit?"];
+const TECH_CHECKS=[["feasibility","Feasibility — can this be built on our stack as prototyped?"],["integrations","Integrations — are the mocked contracts plausible against the real services?"],["dataBoundaries","Data boundaries — provenance stated, PII scrubbed, nothing real used early on a mandated project?"],["reuse","Reuse potential — which layers look reuse vs rebuild vs reference-only (provisional call)?"]];
+const QA_CHECKS=[["states","States — any missing? unreachable? empty/loading/error everywhere?"],["validations","Validations and error copy — complete and consistent?"],["errorsRetries","Errors and retries — does every failure path have an exit?"],["testability","Testability — can each scenario be triggered deterministically?"]];
+
+/* ============ state ============ */
+const blankProject = (name)=>({
+  meta:{ title:name, slug:slugify(name), owner:"", tech:"", qa:"", designer:"",
+    tier:null, triggers:[], data:"synthetic", pipeline:"", dumpdate:"",
+    entry:"", run:"", status:"framing", created:today(), g0:today(), g1:"", g2:"", g3:"", g4:"", g6:"" },
+  spec:{ screens:[], edges:[], events:[], fidelity:[], scenarios:[{id:"S1",name:"",demonstrable:false,trigger:"",nd:false,ndreason:""}] },
+  review:{ objections:[], coverageAgreed:"", coverageBy:"",
+    techChecks:{feasibility:false,integrations:false,dataBoundaries:false,reuse:false},
+    qaChecks:{states:false,validations:false,errorsRetries:false,testability:false},
+    dodManual:{secrets:false,runzero:false}, stranger:{ran:"",defects:-1,report:""},
+    signatures:{pm:"",tech:"",qa:""}, digest:"", releaseNum:1, reconcile:{}, eventAudit:false, mocksVerified:false }
+});
+function normalize(){
+  if(!P) return;
+  const r=P.review;
+  r.techChecks = r.techChecks || {feasibility:false,integrations:false,dataBoundaries:false,reuse:false};
+  r.qaChecks = r.qaChecks || {states:false,validations:false,errorsRetries:false,testability:false};
+  if(typeof r.mocksVerified!=="boolean") r.mocksVerified=false;
+  if(typeof r.digest!=="string") r.digest="";
+}
+let P=null;            // current project state {meta,spec,review}
+let projId=null;
+let curTab="pitch";
+let sampleFn=null;     // no server-side AI wired in this self-hosted copy — stranger-test button stays hidden
+let rowVersion=null;   // optimistic-lock version of the currently open project
+let pollTimer=null, saveTimer=null, lastLocalEdit=0, dirty=false;
+const runtimeConfig=Object.freeze(window.__PRD_STUDIO_CONFIG__||{basePath:"",authMode:"token"});
+const basePath=typeof runtimeConfig.basePath==="string"?runtimeConfig.basePath:"";
+const authMode=runtimeConfig.authMode==="trusted_proxy"?"trusted_proxy":"token";
+let teamToken="";
+
+/* ============ utils ============ */
+const $=id=>document.getElementById(id);
+const el=(h)=>{const t=document.createElement("template");t.innerHTML=h.trim();return t.content.firstChild;};
+const escH=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const escY=s=>String(s??"").replace(/\\/g,"\\\\").replace(/"/g,'\\"').replace(/[\u0000-\u001f\u007f-\u009f]/g,c=>({"\n":"\\n","\r":"\\r","\t":"\\t"}[c]||"\\u"+c.charCodeAt(0).toString(16).padStart(4,"0")));
+function canonicalJson(value){
+  if(value===null||typeof value==="boolean"||typeof value==="number"||typeof value==="string") return JSON.stringify(value);
+  if(Array.isArray(value)) return "["+value.map(canonicalJson).join(",")+"]";
+  return "{"+Object.keys(value).sort().map(k=>JSON.stringify(k)+":"+canonicalJson(value[k])).join(",")+"}";
+}
+function slugify(s){return String(s||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,40)||"feature";}
+function today(){return new Date().toISOString().slice(0,10);}
+function toast(m){const t=$("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1900);}
+function debounceSave(){ dirty=true; lastLocalEdit=Date.now(); clearTimeout(saveTimer); saveTimer=setTimeout(persist,800); }
+async function persist(){
+  if(!P||!projId) return;
+  const dataJson=JSON.stringify(P);
+  const versionAtSave=rowVersion;
+  try{
+    const res=await api("/api/projects/"+projId,{method:"PUT",body:`{"version":${JSON.stringify(versionAtSave)},"data":${dataJson}}`});
+    if(res.status===409){
+      const body=await res.json();
+      const loadServer=window.confirm("Someone else saved this PRD first. Load the server copy now?\n\nOK loads their version and discards your unsaved local edits. Cancel keeps your local edits without overwriting theirs; the next save will ask again.");
+      if(loadServer){ P=body.data; rowVersion=body.version; dirty=false; render(); toast("Loaded the latest server copy"); }
+      else { dirty=true; toast("Local edits kept unsaved — no server data was overwritten"); }
+      return;
+    }
+    if(!res.ok) throw new Error("save failed");
+    const body=await res.json();
+    rowVersion=body.version;
+    if(P&&JSON.stringify(P)===dataJson) dirty=false;
+  }catch(e){ dirty=true; toast("Couldn't sync — will retry on next edit"); }
+}
+function invalidateFrozenSnapshot(){
+  if(!P?.meta?.g4) return;
+  P.meta.g4=""; P.meta.g6=""; P.meta.status="building";
+  P.review.digest="";
+  P.review.releaseNum=Math.min(10000,P.review.releaseNum+1);
+  P.review.signatures={pm:"",tech:"",qa:""};
+  P.review.stranger={ran:"",defects:-1,report:""};
+  P.review.reconcile={}; P.review.eventAudit=false; P.review.mocksVerified=false;
+  toast("Frozen snapshot changed — new evidence and signatures required");
+}
+function mutate(fn,options={}){ if(!options.preserveFreeze) invalidateFrozenSnapshot(); fn(); debounceSave(); render(); }
+function mutateQuiet(fn,options={}){ if(!options.preserveFreeze) invalidateFrozenSnapshot(); fn(); debounceSave(); renderGates(); } /* for text inputs: no full re-render, keep focus */
+
+/* ============ self-hosted API + team-token gate (replaces window.claude.use) ============ */
+async function api(path,opts){
+  const headers={...(opts&&opts.headers||{})};
+  if(opts&&opts.body) headers["Content-Type"]="application/json";
+  if(authMode==="token") headers.Authorization="Bearer "+teamToken;
+  return fetch(basePath+path,{...opts,headers});
+}
+function showTokenGate(err){
+  $("homeView").hidden=true; $("projView").hidden=true; $("tokenGate").hidden=false;
+  if(err){ $("tokenErr").hidden=false; $("tokenErr").textContent=err; } else { $("tokenErr").hidden=true; }
+}
+async function tryEnterApp(){
+  try{
+    const res=await api("/api/projects");
+    if(res.status===401){
+      if(authMode==="token") showTokenGate("Wrong password — try again.");
+      else { $("tokenGate").hidden=true; $("homeView").hidden=true; $("projView").hidden=true; $("modeTag").textContent="access denied — check proxy authentication"; }
+      return;
+    }
+    $("tokenGate").hidden=true;
+    $("modeTag").textContent=authMode==="trusted_proxy"?"team mode — authenticated by proxy":"team mode — shared on this server";
+    renderHome();
+  }catch(e){
+    $("modeTag").textContent="offline — check your connection";
+    if(authMode==="token") showTokenGate("Couldn't reach the server — check your connection and try again.");
+    else { $("tokenGate").hidden=true; $("homeView").hidden=true; $("projView").hidden=true; }
+  }
+}
+$("tokenBtn").addEventListener("click",async()=>{
+  const v=$("tokenIn").value.trim(); if(!v) return;
+  teamToken=v;
+  await tryEnterApp();
+});
+$("tokenIn").addEventListener("keydown",e=>{if(e.key==="Enter")$("tokenBtn").click();});
+
+/* ============ boot ============ */
+(async()=>{
+  if(authMode==="token"&&!teamToken){ showTokenGate(); return; }
+  await tryEnterApp();
+})();
+
+/* ============ home ============ */
+async function listProjects(){
+  try{ const res=await api("/api/projects"); return res.ok? await res.json() : []; }catch(e){ return []; }
+}
+async function renderHome(){
+  $("homeView").hidden=false; $("projView").hidden=true;
+  $("pageTitle").textContent="PRD Studio"; $("pageSub").hidden=false;
+  const list=await listProjects();
+  $("projList").innerHTML = list.length? "" : '<p class="note">No projects yet — start one below.</p>';
+  list.sort((a,b)=>String(b.meta.created||"").localeCompare(String(a.meta.created||"")));
+  for(const p of list){
+    const row=el(`<div class="projrow" role="button" tabindex="0"><span><b>${escH(p.meta.title||p.id)}</b><div class="meta">${escH(p.meta.tier||"tier ?")} · ${escH(p.meta.status||"framing")} · ${escH(p.meta.owner||"unowned")}</div></span><span class="mono note">open →</span></div>`);
+    row.addEventListener("click",()=>openProject(p.id));
+    row.addEventListener("keydown",e=>{if(e.key==="Enter")openProject(p.id);});
+    $("projList").appendChild(row);
+  }
+}
+$("newProjBtn").addEventListener("click",async()=>{
+  const name=$("newProjName").value.trim(); if(!name){toast("Name the feature first");return;}
+  const proj=blankProject(name); const id=proj.meta.slug+"-"+Math.random().toString(36).slice(2,6);
+  try{
+    const res=await api("/api/projects",{method:"POST",body:JSON.stringify({id,slug:proj.meta.slug,data:proj})});
+    if(!res.ok){ toast("Couldn't create — try again"); return; }
+  }catch(e){ toast("Couldn't create — check your connection"); return; }
+  $("newProjName").value=""; openProject(id);
+});
+
+/* ============ open/poll ============ */
+async function openProject(id){
+  projId=id; if(pollTimer){clearInterval(pollTimer);pollTimer=null;}
+  try{
+    const res=await api("/api/projects/"+id);
+    if(!res.ok){ toast("Couldn't open — try again"); projId=null; return; }
+    const body=await res.json();
+    P=body.data; rowVersion=body.version; dirty=false;
+  }catch(e){ toast("Couldn't open — check your connection"); projId=null; return; }
+  // Poll rather than push (no server-sent events in this self-hosted copy). Only
+  // adopt a remote change once the user's been idle a beat, same guard the
+  // Claude-hosted live-sync used — and apply version+data together in one step
+  // so we can never end up "version-consistent" with data that never arrived.
+  pollTimer=setInterval(async()=>{
+    if(!projId || dirty || Date.now()-lastLocalEdit<2500) return;
+    try{
+      const res=await api("/api/projects/"+projId);
+      if(!res.ok) return;
+      const body=await res.json();
+      if(body.version!==rowVersion){ P=body.data; rowVersion=body.version; render(); }
+    }catch(e){ /* offline for a beat — next tick tries again */ }
+  },4000);
+  curTab="pitch";
+  $("homeView").hidden=true; $("projView").hidden=false; $("pageSub").hidden=true;
+  render();
+}
+$("backBtn").addEventListener("click",()=>{ if(dirty&&!window.confirm("This PRD has unsaved local edits. Leave without saving them?"))return; if(pollTimer){clearInterval(pollTimer);pollTimer=null;} projId=null; P=null; dirty=false; renderHome(); });
+window.addEventListener("beforeunload",e=>{if(!dirty)return;e.preventDefault();e.returnValue="";});
+
+/* ============ gate + tab chrome ============ */
+function gateState(){
+  const m=P.meta, r=P.review, s=P.spec;
+  const g2ok=!!r.coverageAgreed;
+  const scen=s.scenarios.filter(x=>x.name.trim());
+  const g3ok=scen.length>0 && scen.every(x=>x.demonstrable||(x.nd&&x.ndreason.trim())) && s.events.length>0 && s.events.every(e=>e.fires) && !!m.entry.trim() && !!m.run.trim();
+  const sigs=r.signatures; const g4ok = m.g4!=="" && m.g4!=null && m.g4!==undefined && m.g4!=="pending" && !!m.g4;
+  const g6ok = scen.length>0 && scen.every(x=>r.reconcile[x.id]==="pass"||r.reconcile[x.id]==="deviation") && r.eventAudit;
+  return {g0:!!m.g0, g1:s.screens.length>0&&scen.length>0, g2:g2ok, g3:g3ok, g4:!!m.g4, g5:!!m.g4, g6:g6ok};
+}
+function nextAction(g){
+  if(!g.g1) return ["v-amber","You (+ designer)","list your screens in Spec and name your scenarios in Pitch."];
+  if(!g.g2) return ["v-amber","Tech lead + QA","book the 30-minute alpha review in the Review tab — one working journey is enough."];
+  if(!g.g3) return ["v-amber","You (+ AI)","keep building — tick off every scenario and event in the Build tab."];
+  if(!g.g4) return ["v-amber","You + tech lead + QA","run the stranger test and collect the three signatures in the Lock tab."];
+  if(!g.g6) return ["v-amber","QA + you","compare the real build against the frozen draft in the Reconcile tab."];
+  return ["v-green","Nothing left","reconciled and clear to ship."];
+}
+function renderGates(){
+  const g=gateState(); const names=[["g0","G0 Frame"],["g1","G1 Solution"],["g2","G2 Alpha review"],["g3","G3 Complete"],["g4","G4 Frozen"],["g6","G6 Reconciled"]];
+  let firstOpen=names.find(([k])=>!g[k]);
+  $("gateStrip").innerHTML=names.map(([k,label])=>`<span class="gate ${g[k]?"done":(firstOpen&&firstOpen[0]===k?"now":"")}">${g[k]?"✓ ":""}${label}</span>`).join("");
+  const [cls,who,what]=nextAction(g);
+  $("nextAction").innerHTML=`<div class="verdict ${cls}" style="margin-top:10px"><span class="pill">${cls==="v-green"?"DONE":"NEXT"}</span><span><b>${escH(who)}</b> — ${escH(what)}</span></div>`;
+  $("pageTitle").textContent=P.meta.title||"PRD Studio";
+}
+function render(){
+  if(!P) return;
+  normalize();
+  renderGates();
+  $("tabs").innerHTML="";
+  for(const [k,label] of TABS){
+    const b=el(`<button class="${curTab===k?"on":""}">${label}</button>`);
+    b.addEventListener("click",()=>{curTab=k;render();});
+    $("tabs").appendChild(b);
+  }
+  const body=$("tabBody"); body.innerHTML="";
+  ({pitch:renderPitch,spec:renderSpec,review:renderReview,build:renderBuild,lock:renderLock,reconcile:renderReconcile,files:renderFiles})[curTab](body);
+}
+
+/* ============ helpers for inputs ============ */
+function tIn(val,ph,fn,small){ const i=el(`<input type="text" value="${escH(val)}" placeholder="${escH(ph)}" ${small?'style="max-width:'+small+'px"':""}>`); i.addEventListener("input",()=>{fn(i.value);mutateQuiet(()=>{});}); return i; }
+function delBtn(fn){ const b=el(`<button class="ghost" aria-label="remove">✕</button>`); b.addEventListener("click",()=>mutate(fn)); return b; }
+
+/* ============ 1 · PITCH ============ */
+function renderPitch(body){
+  const m=P.meta;
+  const c1=el(`<div class="card"><h2>The project</h2><p class="hint"><b>Who: you (PM).</b> The three named people are the ones who sign the lock later.</p><div class="grid2" id="pf"></div></div>`);
+  body.appendChild(c1);
+  const pf=c1.querySelector("#pf");
+  const add=(label,key,ph)=>{ const w=el(`<div><label class="f">${label}</label></div>`); w.appendChild(tIn(m[key],ph,v=>m[key]=v)); pf.appendChild(w); };
+  add("Feature name","title","e.g. Feedback form"); add("PM (owner)","owner","who owns this");
+  add("Tech lead","tech","reviews + signs"); add("QA","qa","challenges + signs");
+  add("Designer","designer","or leave empty"); add("Folder name","slug","feedback-form");
+
+  const c2=el(`<div class="card"><h2>What does it touch?</h2><p class="hint">Any tick makes the full process compulsory.</p><div id="trg"></div><div id="mv"></div></div>`);
+  body.appendChild(c2);
+  for(const [k,l] of TRIGGERS){
+    const on=m.triggers.includes(k);
+    const c=el(`<label class="choice ${on?"sel-amber":""}"><input type="checkbox" ${on?"checked":""}><span><b>${l}</b></span></label>`);
+    c.querySelector("input").addEventListener("change",e=>mutate(()=>{ m.triggers=e.target.checked? [...m.triggers,k] : m.triggers.filter(x=>x!==k); }));
+    c2.querySelector("#trg").appendChild(c);
+  }
+  c2.querySelector("#mv").appendChild(m.triggers.length
+    ? el(`<div class="verdict v-amber"><span class="pill">FULL PROCESS — REQUIRED</span><span>Because it touches: ${m.triggers.map(k=>TRIGGERS.find(x=>x[0]===k)[1].toLowerCase()).join("; ")}.</span></div>`)
+    : el(`<div class="verdict v-green"><span class="pill">OPTIONAL</span><span>Nothing risky ticked — you may skip the ceremony. The folder is still the default.</span></div>`));
+
+  const c3=el(`<div class="card"><h2>How real must the draft be?</h2><div id="trs"></div></div>`);
+  body.appendChild(c3);
+  for(const [k,name,d] of TIERS){
+    const on=m.tier===k;
+    const c=el(`<label class="choice ${on?"sel":""}"><input type="radio" name="tier" ${on?"checked":""}><span><b>${k} · ${name}</b><div class="d">${d}</div></span></label>`);
+    c.querySelector("input").addEventListener("change",()=>mutate(()=>{m.tier=k;}));
+    c3.querySelector("#trs").appendChild(c);
+  }
+
+  const c4=el(`<div class="card"><h2>What may the separate prototype use?</h2><p class="hint">Studio records requirements and non-secret attestation metadata only. Never paste, upload, or quote customer-derived records here, even after scrubbing.</p><div id="dt"></div><div id="df" ${m.data==="staging-dump"?"":"hidden"}><div class="grid2" id="dff"></div></div><div id="dv"></div></div>`);
+  body.appendChild(c4);
+  const DOPT=[["synthetic","Made-up data","Always fine. The default.","sel","ALLOWED","v-green","Made-up data — nothing to attest."],["staging-dump","External scrub attestation","Metadata only for a separately hosted dataset processed by the approved scrub pipeline.","sel-amber","CONDITIONAL","v-amber","Record only the non-secret pipeline identifier and attestation date. Never put the dataset or excerpts in Studio."],["raw","Raw customer data","Never. Any tier, any deadline.","sel-red","PROHIBITED","v-red","Raw customer data never enters Studio or the draft."]];
+  for(const [k,name,d,selCls] of DOPT){
+    const on=m.data===k;
+    const c=el(`<label class="choice ${on?selCls:""}"><input type="radio" name="dt" ${on?"checked":""} ${k==="raw"?"disabled aria-disabled=\"true\"":""}><span><b>${name}</b><div class="d">${d}</div></span></label>`);
+    c.querySelector("input").addEventListener("change",()=>mutate(()=>{m.data=k;}));
+    c4.querySelector("#dt").appendChild(c);
+  }
+  const dff=c4.querySelector("#dff");
+  const w1=el(`<div><label class="f">Scrub pipeline identifier (no data content)</label></div>`); w1.appendChild(tIn(m.pipeline,"non-secret name + version only",v=>m.pipeline=v)); dff.appendChild(w1);
+  const w2=el(`<div><label class="f">Attestation date</label></div>`); w2.appendChild(tIn(m.dumpdate,"YYYY-MM-DD",v=>m.dumpdate=v)); dff.appendChild(w2);
+  const dsel=DOPT.find(x=>x[0]===m.data);
+  c4.querySelector("#dv").appendChild(el(`<div class="verdict ${dsel[5]}"><span class="pill">${dsel[4]}</span><span>${dsel[6]}</span></div>`));
+
+  const c5=el(`<div class="card"><h2>Scenarios you already know about</h2><p class="hint">Rough is fine — tech + QA finish this list with you at the review.</p><div id="sc"></div><div class="btnrow"><button id="addS">+ Add scenario</button></div></div>`);
+  body.appendChild(c5);
+  P.spec.scenarios.forEach((s,i)=>{
+    const row=el(`<div class="rowline"><span class="xs mono" style="padding-top:9px;color:var(--accent)">${escH(s.id)}</span></div>`);
+    row.appendChild(tIn(s.name, i===0?"e.g. user submits feedback successfully":"another scenario", v=>s.name=v));
+    row.appendChild(delBtn(()=>{P.spec.scenarios.splice(i,1); P.spec.scenarios.forEach((x,j)=>x.id="S"+(j+1)); if(!P.spec.scenarios.length)P.spec.scenarios.push({id:"S1",name:"",demonstrable:false,trigger:"",nd:false,ndreason:""});}));
+    c5.querySelector("#sc").appendChild(row);
+  });
+  c5.querySelector("#addS").addEventListener("click",()=>mutate(()=>P.spec.scenarios.push({id:"S"+(P.spec.scenarios.length+1),name:"",demonstrable:false,trigger:"",nd:false,ndreason:""})));
+}
+
+/* ============ 2 · SPEC ============ */
+function renderSpec(body){
+  const s=P.spec;
+  const c1=el(`<div class="card"><h2>Screens</h2><p class="hint"><b>Who: you + designer.</b> Every screen the user sees, with its fields, rules, and exact error copy.</p><div id="scr"></div><div class="btnrow"><button id="addScr">+ Add screen</button></div></div>`);
+  body.appendChild(c1);
+  s.screens.forEach((scr,si)=>{
+    const box=el(`<div class="screenbox"><h3><span class="mono" style="color:var(--accent)">Screen ${si+1}</span></h3><div class="grid2" id="sm"></div><table class="tbl"><thead><tr><th>Field</th><th>Required</th><th>Rule / format</th><th>Exact error copy</th><th></th></tr></thead><tbody id="fb"></tbody></table><div class="btnrow"><button id="addF">+ Field</button></div></div>`);
+    box.querySelector("h3").appendChild(delBtn(()=>s.screens.splice(si,1)));
+    const sm=box.querySelector("#sm");
+    const w1=el(`<div><label class="f">Screen name</label></div>`); w1.appendChild(tIn(scr.name,"e.g. Feedback form",v=>scr.name=v)); sm.appendChild(w1);
+    const w2=el(`<div><label class="f">Purpose</label></div>`); w2.appendChild(tIn(scr.purpose,"one line",v=>scr.purpose=v)); sm.appendChild(w2);
+    const fb=box.querySelector("#fb");
+    (scr.fields||[]).forEach((f,fi)=>{
+      const tr=el(`<tr><td></td><td style="text-align:center"><input type="checkbox" ${f.req?"checked":""}></td><td></td><td></td><td></td></tr>`);
+      tr.children[0].appendChild(tIn(f.f,"field",v=>f.f=v));
+      tr.querySelector("input[type=checkbox]").addEventListener("change",e=>mutateQuiet(()=>f.req=e.target.checked));
+      tr.children[2].appendChild(tIn(f.fmt,"e.g. ≤500 chars, not empty",v=>f.fmt=v));
+      tr.children[3].appendChild(tIn(f.err,"exact copy the user sees",v=>f.err=v));
+      tr.children[4].appendChild(delBtn(()=>scr.fields.splice(fi,1)));
+      fb.appendChild(tr);
+    });
+    box.querySelector("#addF").addEventListener("click",()=>mutate(()=>{scr.fields=scr.fields||[];scr.fields.push({f:"",req:true,fmt:"",err:""});}));
+    c1.querySelector("#scr").appendChild(box);
+  });
+  c1.querySelector("#addScr").addEventListener("click",()=>mutate(()=>s.screens.push({name:"",purpose:"",fields:[]})));
+
+  const c2=el(`<div class="card"><h2>Edge cases</h2><p class="hint">What can go wrong, tied to a scenario. Expected behaviour in plain words.</p><table class="tbl"><thead><tr><th style="width:70px">Scenario</th><th>Case</th><th>Expected behaviour</th><th></th></tr></thead><tbody id="eb"></tbody></table><div class="btnrow"><button id="addE">+ Edge case</button></div></div>`);
+  body.appendChild(c2);
+  const eb=c2.querySelector("#eb");
+  s.edges.forEach((e,i)=>{
+    const sel=el(`<select>${s.scenarios.map(x=>`<option ${e.sid===x.id?"selected":""}>${escH(x.id)}</option>`).join("")}</select>`);
+    sel.addEventListener("change",()=>mutateQuiet(()=>e.sid=sel.value));
+    const tr=el(`<tr><td></td><td></td><td></td><td></td></tr>`);
+    tr.children[0].appendChild(sel);
+    tr.children[1].appendChild(tIn(e.caseTxt,"e.g. double-tap submit",v=>e.caseTxt=v));
+    tr.children[2].appendChild(tIn(e.expected,"e.g. second tap ignored, one entry saved",v=>e.expected=v));
+    tr.children[3].appendChild(delBtn(()=>s.edges.splice(i,1)));
+    eb.appendChild(tr);
+  });
+  c2.querySelector("#addE").addEventListener("click",()=>mutate(()=>s.edges.push({sid:s.scenarios[0]?.id||"S1",caseTxt:"",expected:""})));
+
+  const c3=el(`<div class="card"><h2>What we track</h2><p class="hint">Every event fires visibly in the draft — the Build tab checks each one.</p><table class="tbl"><thead><tr><th>Event</th><th>Fires when (exact)</th><th>Properties</th><th></th></tr></thead><tbody id="tb"></tbody></table><div class="btnrow"><button id="addT">+ Event</button></div></div>`);
+  body.appendChild(c3);
+  const tb=c3.querySelector("#tb");
+  s.events.forEach((ev,i)=>{
+    const tr=el(`<tr><td></td><td></td><td></td><td></td></tr>`);
+    tr.children[0].appendChild(tIn(ev.name,"feedback_submitted",v=>ev.name=v));
+    tr.children[1].appendChild(tIn(ev.trigger,"user taps Submit with valid input",v=>ev.trigger=v));
+    tr.children[2].appendChild(tIn(ev.props,"length, rating",v=>ev.props=v));
+    tr.children[3].appendChild(delBtn(()=>s.events.splice(i,1)));
+    tb.appendChild(tr);
+  });
+  c3.querySelector("#addT").addEventListener("click",()=>mutate(()=>s.events.push({name:"",trigger:"",props:"",fires:false})));
+}
+
+/* ============ 3 · REVIEW (G2) ============ */
+function renderReview(body){
+  const r=P.review;
+  const c0=el(`<div class="card"><h2>Alpha review — 30 minutes, three allowed objections</h2><p class="hint"><b>Who: tech lead + QA.</b> Look at one working journey. They may block only on: can't be built, not safe, can't be tested. Everything else is a note for Decisions.</p></div>`);
+  body.appendChild(c0);
+
+  const cTech=el(`<div class="card"><h2>Tech lead checks</h2><p class="hint">What the tech lead actually looks at. Ticking these is a guide, not a gate — the blocking rule above is what matters.</p><div id="tc"></div></div>`);
+  body.appendChild(cTech);
+  for(const [k,label] of TECH_CHECKS){
+    const on=r.techChecks[k];
+    const row=el(`<div class="check ${on?"ok":"no"}"><span class="st">${on?"✓":"·"}</span><span style="flex:1">${label}</span></div>`);
+    const b=el(`<button class="xs">${on?"Checked":"Check"}</button>`);
+    b.addEventListener("click",()=>mutate(()=>r.techChecks[k]=!r.techChecks[k]));
+    row.appendChild(b);
+    cTech.querySelector("#tc").appendChild(row);
+  }
+
+  const cQA=el(`<div class="card"><h2>QA checks</h2><p class="hint">What QA actually looks at. Same deal — a guide, not a gate.</p><div id="qc"></div></div>`);
+  body.appendChild(cQA);
+  for(const [k,label] of QA_CHECKS){
+    const on=r.qaChecks[k];
+    const row=el(`<div class="check ${on?"ok":"no"}"><span class="st">${on?"✓":"·"}</span><span style="flex:1">${label}</span></div>`);
+    const b=el(`<button class="xs">${on?"Checked":"Check"}</button>`);
+    b.addEventListener("click",()=>mutate(()=>r.qaChecks[k]=!r.qaChecks[k]));
+    row.appendChild(b);
+    cQA.querySelector("#qc").appendChild(row);
+  }
+
+  const c1=el(`<div class="card"><h2>Objections</h2><div id="ob"></div><div class="rowline" id="newOb"></div></div>`);
+  body.appendChild(c1);
+  r.objections.forEach((o,i)=>{
+    const t=OBJ_TYPES.find(x=>x[0]===o.type);
+    const row=el(`<div class="check ${o.resolved?"ok":"no"}"><span class="st">${o.resolved?"✓":"!"}</span><span style="flex:1"><b>${escH(t?t[1]:o.type)}</b> — ${escH(o.note)} <span class="note">(${escH(o.by||"reviewer")})</span></span></div>`);
+    const b=el(`<button class="xs">${o.resolved?"Reopen":"Resolve"}</button>`);
+    b.addEventListener("click",()=>mutate(()=>o.resolved=!o.resolved));
+    row.appendChild(b);
+    c1.querySelector("#ob").appendChild(row);
+  });
+  if(!r.objections.length) c1.querySelector("#ob").innerHTML='<p class="note">None raised.</p>';
+  const sel=el(`<select class="xs" style="max-width:160px">${OBJ_TYPES.map(([k,l])=>`<option value="${k}">${l}</option>`).join("")}</select>`);
+  const noteI=el(`<input type="text" placeholder="what exactly, and why">`);
+  const byI=el(`<input type="text" class="xs" style="max-width:130px" placeholder="your name">`);
+  const addB=el(`<button class="xs primary">Raise</button>`);
+  addB.addEventListener("click",()=>{ if(!noteI.value.trim()){toast("Say what the objection is");return;} mutate(()=>r.objections.push({type:sel.value,note:noteI.value.trim(),by:byI.value.trim(),resolved:false})); });
+  const nw=c1.querySelector("#newOb"); nw.append(sel,noteI,byI,addB);
+
+  const c2=el(`<div class="card"><h2>Coverage plan</h2><p class="hint">The scenario list the finished draft must demonstrate. Add what the PM missed, then agree it — the IDs follow this feature into production tickets and the final match check.</p><div id="cv"></div><div class="btnrow"><button id="addCv">+ Add scenario</button><span style="flex:1"></span><button class="primary" id="agree" ${r.coverageAgreed?"disabled":""}>${r.coverageAgreed?"Agreed "+escH(r.coverageAgreed):"Agree coverage plan"}</button></div></div>`);
+  body.appendChild(c2);
+  P.spec.scenarios.forEach(s=>{
+    c2.querySelector("#cv").appendChild(el(`<div class="check ok"><span class="st mono" style="width:30px">${escH(s.id)}</span><span>${escH(s.name||"(unnamed)")}</span></div>`));
+  });
+  c2.querySelector("#addCv").addEventListener("click",()=>{curTab="pitch";render();toast("Add scenarios at the bottom of Pitch");});
+  c2.querySelector("#agree").addEventListener("click",()=>{
+    if(!P.spec.scenarios.some(x=>x.name.trim())){toast("Name at least one scenario first");return;}
+    mutate(()=>{r.coverageAgreed=today(); r.coverageBy=(P.meta.tech||"tech")+" + "+(P.meta.qa||"QA"); P.meta.g2=today(); P.meta.status="building";});
+  });
+}
+
+/* ============ 4 · BUILD (G3) ============ */
+function renderBuild(body){
+  const m=P.meta,s=P.spec;
+  const c0=el(`<div class="card"><h2>Where does the draft live?</h2><p class="hint"><b>Who: you (+ designer), with AI doing the build.</b> Fill this in once the draft has a home.</p><div class="grid2" id="wf"></div></div>`);
+  body.appendChild(c0);
+  const wf=c0.querySelector("#wf");
+  const w1=el(`<div><label class="f">Where it runs (URL / file / repo)</label></div>`); w1.appendChild(tIn(m.entry,"link or path",v=>m.entry=v)); wf.appendChild(w1);
+  const w2=el(`<div><label class="f">How to open it</label></div>`); w2.appendChild(tIn(m.run,"open index.html / npm run dev",v=>m.run=v)); wf.appendChild(w2);
+
+  const c1=el(`<div class="card"><h2>Every scenario, demonstrable</h2><p class="hint">Tick when you can click it end to end in the draft, and write the trigger steps. If it truly can't be shown, mark it with a reason — it still gets built and tested in production.</p><div id="ds"></div></div>`);
+  body.appendChild(c1);
+  s.scenarios.filter(x=>x.name.trim()).forEach(sc=>{
+    const box=el(`<div class="screenbox"><h3><span><span class="mono" style="color:var(--accent)">${escH(sc.id)}</span> ${escH(sc.name)}</span></h3><div class="rowline" id="r1"></div><div class="rowline" id="r2"></div></div>`);
+    const demo=el(`<label class="choice xs" style="flex:0 0 auto;margin-top:8px"><input type="checkbox" ${sc.demonstrable?"checked":""}><span><b>Demonstrable in the draft</b></span></label>`);
+    demo.querySelector("input").addEventListener("change",e=>mutate(()=>{sc.demonstrable=e.target.checked; if(sc.demonstrable)sc.nd=false;}));
+    box.querySelector("#r1").appendChild(demo);
+    box.querySelector("#r1").appendChild(tIn(sc.trigger,"how to trigger it, step by step",v=>sc.trigger=v));
+    const nd=el(`<label class="choice xs" style="flex:0 0 auto;margin-top:8px"><input type="checkbox" ${sc.nd?"checked":""}><span><b>Can't be shown</b></span></label>`);
+    nd.querySelector("input").addEventListener("change",e=>mutate(()=>{sc.nd=e.target.checked; if(sc.nd)sc.demonstrable=false;}));
+    box.querySelector("#r2").appendChild(nd);
+    if(sc.nd) box.querySelector("#r2").appendChild(tIn(sc.ndreason,"why: third-party side / long-horizon / race condition — plus the production test",v=>sc.ndreason=v));
+    c1.querySelector("#ds").appendChild(box);
+  });
+  if(!s.scenarios.some(x=>x.name.trim())) c1.querySelector("#ds").innerHTML='<p class="note">No scenarios yet — add them in Pitch.</p>';
+
+  const c2=el(`<div class="card"><h2>Every event, firing</h2><p class="hint">Tick each one once you see it in the draft's event panel.</p><div id="ef"></div></div>`);
+  body.appendChild(c2);
+  s.events.forEach(ev=>{
+    const row=el(`<div class="check ${ev.fires?"ok":"no"}"><span class="st">${ev.fires?"✓":"·"}</span><span style="flex:1"><span class="mono">${escH(ev.name||"(unnamed)")}</span> — ${escH(ev.trigger||"")}</span></div>`);
+    const b=el(`<button class="xs">${ev.fires?"Firing ✓":"Mark firing"}</button>`);
+    b.addEventListener("click",()=>mutate(()=>ev.fires=!ev.fires));
+    row.appendChild(b);
+    c2.querySelector("#ef").appendChild(row);
+  });
+  if(!s.events.length) c2.querySelector("#ef").innerHTML='<p class="note">No events yet — add them in Spec.</p>';
+
+  const c3=el(`<div class="card"><h2>Honesty labels</h2><p class="hint">Every part of the draft: REAL (talks to actual systems) · MOCKED (stand-in with written behaviour) · STATIC (a picture).</p><table class="tbl"><thead><tr><th>Part</th><th style="width:110px">Label</th><th>Note</th><th></th></tr></thead><tbody id="fm"></tbody></table><div class="btnrow"><button id="addFm">+ Part</button></div></div>`);
+  body.appendChild(c3);
+  const fm=c3.querySelector("#fm");
+  s.fidelity.forEach((f,i)=>{
+    const sel=el(`<select><option ${f.label==="REAL"?"selected":""}>REAL</option><option ${f.label==="MOCKED"?"selected":""}>MOCKED</option><option ${f.label==="STATIC"?"selected":""}>STATIC</option></select>`);
+    sel.addEventListener("change",()=>mutateQuiet(()=>f.label=sel.value));
+    const tr=el(`<tr><td></td><td></td><td></td><td></td></tr>`);
+    tr.children[0].appendChild(tIn(f.path,"e.g. submit API",v=>f.path=v));
+    tr.children[1].appendChild(sel);
+    tr.children[2].appendChild(tIn(f.note,"one line",v=>f.note=v));
+    tr.children[3].appendChild(delBtn(()=>s.fidelity.splice(i,1)));
+    fm.appendChild(tr);
+  });
+  c3.querySelector("#addFm").addEventListener("click",()=>mutate(()=>s.fidelity.push({path:"",label:"MOCKED",note:""})));
+
+  const g=gateState();
+  body.appendChild(el(`<div class="verdict ${g.g3?"v-green":"v-amber"}" style="margin-top:16px"><span class="pill">${g.g3?"G3 COMPLETE":"IN PROGRESS"}</span><span>${g.g3?"Everything on the coverage plan is demonstrable and every event fires — go to Lock.":"Complete when: draft location filled, every named scenario demonstrable (or marked with a reason), every event firing."}</span></div>`));
+}
+
+/* ============ 5 · LOCK (G4) ============ */
+function dodItems(){
+  const m=P.meta,s=P.spec,r=P.review;
+  const scen=s.scenarios.filter(x=>x.name.trim());
+  return [
+    ["Coverage plan agreed at the review", !!r.coverageAgreed],
+    ["Every scenario demonstrable, or marked with a reason", scen.length>0 && scen.every(x=>x.demonstrable||(x.nd&&x.ndreason.trim()))],
+    ["Every event fires in the draft", s.events.length>0 && s.events.every(e=>e.fires)],
+    ["Every part labelled REAL / MOCKED / STATIC", s.fidelity.length>0 && s.fidelity.every(f=>f.path.trim())],
+    ["Draft location + how to open it filled", !!m.entry.trim() && !!m.run.trim()],
+    ["Data rule clean (made-up, or external scrub metadata attested; no records in Studio)", m.data==="synthetic" || (m.data==="staging-dump" && !!m.pipeline.trim() && !!m.dumpdate.trim())],
+    ["All review objections resolved", r.objections.every(o=>o.resolved)],
+    ["Stranger test passed (0 unanswerable)", r.stranger.defects===0],
+  ];
+}
+function renderLock(body){
+  const m=P.meta,r=P.review;
+  const frozen=!!m.g4;
+
+  const c1=el(`<div class="card"><h2>Stranger test</h2><p class="hint"><b>Who: you + tech lead + QA — all three sign below.</b> An AI with no part in the build reads only your bundle and answers "what happens if…?" questions. Anything it can't answer is a gap in the bundle — fix the bundle, not the answer. Required to lock; the decision itself stays human.</p><div id="strOut"></div><div class="btnrow"><button class="primary" id="runStr" ${sampleFn?"":"hidden"}>Run stranger test</button><span class="note" id="strNote">${sampleFn?"Uses your own Claude account; takes ~30–60s.":"No AI is wired into this self-hosted copy — run it yourself: paste the Files tab's contents into any fresh AI chat and ask the questions below."}</span></div></div>`);
+  body.appendChild(c1);
+  if(r.stranger.ran){
+    const ok=r.stranger.defects===0;
+    c1.querySelector("#strOut").appendChild(el(`<div class="verdict ${ok?"v-green":"v-amber"}"><span class="pill">${ok?"PASSED":escH(r.stranger.defects)+" GAPS"}</span><span>Last run ${escH(r.stranger.ran)}. ${ok?"The bundle answered everything.":"Fix the gaps below in Spec, then re-run."}</span></div>`));
+    if(r.stranger.report) c1.querySelector("#strOut").appendChild(el(`<pre>${escH(r.stranger.report)}</pre>`));
+  }
+  c1.querySelector("#runStr")?.addEventListener("click",()=>runStranger(c1.querySelector("#runStr"),c1.querySelector("#strNote")));
+
+  const c2=el(`<div class="card"><h2>Ready to lock?</h2><div id="dod"></div><div class="check"><span class="st" id="ms1"></span><span style="flex:1">No secrets or personal data anywhere in the bundle</span><button class="xs" id="mb1"></button></div><div class="check"><span class="st" id="ms2"></span><span style="flex:1">Someone else opened the draft from zero using only "how to open it"</span><button class="xs" id="mb2"></button></div></div>`);
+  body.appendChild(c2);
+  for(const [label,ok] of dodItems()){
+    c2.querySelector("#dod").appendChild(el(`<div class="check ${ok?"ok":"no"}"><span class="st">${ok?"✓":"·"}</span><span>${label}</span></div>`));
+  }
+  const setM=(k,st,btn)=>{ const on=r.dodManual[k]; $(st).textContent=on?"✓":"·"; $(st).parentElement.className="check "+(on?"ok":"no"); $(btn).textContent=on?"Confirmed":"Confirm"; $(btn).onclick=()=>mutate(()=>r.dodManual[k]=!r.dodManual[k]); };
+  setM("secrets","ms1","mb1"); setM("runzero","ms2","mb2");
+
+  const c3=el(`<div class="card"><h2>Three signatures</h2><p class="hint">Recorded here for the test run. In the repo flow, the binding copy is the three GitHub approvals — this screen mirrors it.</p><div id="sigs"></div></div>`);
+  body.appendChild(c3);
+  const SIGS=[["pm","PM — “this is what I want”", m.owner],["tech","Tech lead — “we can build this”", m.tech],["qa","QA — “we can test this”", m.qa]];
+  for(const [k,label,name] of SIGS){
+    const signed=r.signatures[k];
+    const row=el(`<div class="sig ${signed?"signed":""}"><span><b>${label}</b> <span class="note">${escH(name||"— name in Pitch")}</span></span></div>`);
+    const b=el(`<button class="xs ${signed?"":"primary"}">${signed?"Signed "+escH(signed):"Sign"}</button>`);
+    b.disabled=!!signed||frozen&&!signed;
+    b.addEventListener("click",()=>mutate(()=>r.signatures[k]=today()+" "+(name||k)));
+    row.appendChild(b);
+    c3.querySelector("#sigs").appendChild(row);
+  }
+
+  const allDod=dodItems().every(x=>x[1]) && r.dodManual.secrets && r.dodManual.runzero;
+  const allSig=r.signatures.pm&&r.signatures.tech&&r.signatures.qa;
+  const c4=el(`<div class="card"><h2>Freeze</h2><div id="fz"></div></div>`);
+  body.appendChild(c4);
+  if(frozen){
+    c4.querySelector("#fz").appendChild(el(`<div class="verdict v-green"><span class="pill">FROZEN</span><span>Locked ${escH(m.g4)} as <span class="mono">prd-${escH(m.slug)}-r${escH(r.releaseNum)}</span>${r.digest?` · Studio snapshot <span class="mono">${escH(String(r.digest).slice(0,18))}…</span>`:""}. This fingerprint detects Studio edits but is not the binding repository release digest. Any real change starts a new release and clears its evidence and signatures.</span></div>`));
+  } else {
+    const b=el(`<button class="primary" ${allDod&&allSig?"":"disabled"}>Freeze this version</button>`);
+    b.addEventListener("click",async()=>{
+      b.disabled=true;
+      const before=canonicalJson(P);
+      const snapshot=JSON.parse(before);
+      snapshot.meta.g4=today(); snapshot.meta.g6=""; snapshot.meta.status="frozen";
+      snapshot.review.digest=""; snapshot.review.reconcile={};
+      snapshot.review.eventAudit=false; snapshot.review.mocksVerified=false;
+      try{
+        const buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(canonicalJson(snapshot)));
+        if(canonicalJson(P)!==before){ toast("Project changed while freezing — review and try again"); render(); return; }
+        snapshot.review.digest="sha256:"+[...new Uint8Array(buf)].map(x=>x.toString(16).padStart(2,"0")).join("");
+      }catch(e){ toast("Couldn't fingerprint this snapshot — nothing was frozen"); render(); return; }
+      mutate(()=>{ P=snapshot; });
+      toast("Frozen — files updated");
+    });
+    c4.querySelector("#fz").appendChild(b);
+    c4.querySelector("#fz").appendChild(el(`<p class="note" style="margin-top:8px">${allDod?(allSig?"Everything green — lock it.":"Waiting on signatures."):"Checklist above must be fully green first."}</p>`));
+  }
+}
+async function runStranger(btn,note){
+  if(!sampleFn) return;
+  btn.disabled=true; note.textContent="Thinking… (30–60s; first run asks your permission)";
+  const bundle=(genManifest()+"\n\n"+genSpecMd()+"\n\n"+genTrackingMd()).slice(0,45000);
+  const prompt="You are a stranger to this project: you had no part in building it. Below is a Living PRD bundle (cover sheet, behaviour spec, tracking plan). Answer ONLY from the bundle.\n\nQuestions:\n"+QBANK.map((q,i)=>(i+1)+". "+q).join("\n")+"\n\nReply with only JSON: {\"answers\":[{\"q\":number,\"a\":\"short answer citing the bundle section\"}],\"unanswerable\":[\"each question or behaviour the bundle does NOT define, as one short line\"]}. Be strict: if the bundle doesn't define it, it goes in unanswerable.\n\n=== BUNDLE ===\n"+bundle;
+  try{
+    const res=await sampleFn.json(prompt,{cache:false});
+    const un=Array.isArray(res?.unanswerable)?res.unanswerable.filter(x=>String(x).trim()):[];
+    const report=(res?.answers||[]).map(a=>"Q"+a.q+": "+a.a).join("\n")+(un.length?"\n\nUNANSWERABLE (fix the bundle):\n- "+un.map(String).join("\n- "):"\n\nNothing unanswerable.");
+    mutate(()=>{ P.review.stranger={ran:today(),defects:un.length,report}; });
+  }catch(e){
+    if(e&&e.code==="not_granted"){ note.textContent="Claude access declined for this page — run the test by pasting the Files into a fresh chat instead."; btn.hidden=true; }
+    else if(e&&e.code==="rate_limited"){ note.textContent="Rate limited — try again in a minute."; }
+    else if(e&&e.code==="invalid_json"){ note.textContent="Answer wasn't parseable — try again."; }
+    else { note.textContent="Couldn't run it just now — try again, or paste the Files into a fresh chat."; }
+    btn.disabled=false;
+  }
+}
+
+/* ============ 7 · RECONCILE (G6) ============ */
+function renderReconcile(body){
+  const r=P.review;
+  const c0=el(`<div class="card"><h2>Match check — before ship</h2><p class="hint"><b>Who: QA + you.</b> Compare what engineering built against what was signed, scenario by scenario. Differences get fixed, or approved and written down. Nothing drifts silently.</p><div id="rc"></div><div class="check"><span class="st" id="ea1">${r.eventAudit?"✓":"·"}</span><span style="flex:1">Event audit rerun on the real build — every tracked event fires with correct properties</span><button class="xs" id="eab">${r.eventAudit?"Confirmed":"Confirm"}</button></div><div class="check"><span class="st" id="mv1">${r.mocksVerified?"✓":"·"}</span><span style="flex:1">Every mock replaced with its real integration — checked against the MOCKS.md contract, including failure modes the mock didn't simulate</span><button class="xs" id="mvb">${r.mocksVerified?"Confirmed":"Confirm"}</button></div></div>`);
+  body.appendChild(c0);
+  const scen=P.spec.scenarios.filter(x=>x.name.trim());
+  scen.forEach(s=>{
+    const st=r.reconcile[s.id]||"";
+    const row=el(`<div class="check ${st?"ok":"no"}"><span class="st mono" style="width:30px">${escH(s.id)}</span><span style="flex:1">${escH(s.name)}${s.nd?' <span class="note" style="color:var(--amber)">· was NOT-DEMONSTRABLE in the draft — verify for real now, it was never optional</span>':""}${st==="deviation"?` — <i>deviation approved: ${escH(r.reconcile[s.id+"_note"]||"")}</i>`:""}</span></div>`);
+    const b1=el(`<button class="xs ${st==="pass"?"primary":""}">Matches</button>`);
+    b1.addEventListener("click",()=>mutate(()=>r.reconcile[s.id]="pass",{preserveFreeze:true}));
+    const b2=el(`<button class="xs">Deviation</button>`);
+    b2.addEventListener("click",()=>{ const note=window.prompt("What differs, and who approved it?"); if(note!=null) mutate(()=>{r.reconcile[s.id]="deviation"; r.reconcile[s.id+"_note"]=note;},{preserveFreeze:true}); });
+    row.append(b1,b2);
+    c0.querySelector("#rc").appendChild(row);
+  });
+  if(!scen.length) c0.querySelector("#rc").innerHTML='<p class="note">No scenarios — nothing to reconcile yet.</p>';
+  c0.querySelector("#eab").addEventListener("click",()=>mutate(()=>r.eventAudit=!r.eventAudit,{preserveFreeze:true}));
+  c0.querySelector("#mvb").addEventListener("click",()=>mutate(()=>r.mocksVerified=!r.mocksVerified,{preserveFreeze:true}));
+  const done=scen.length>0&&scen.every(s=>r.reconcile[s.id])&&r.eventAudit&&r.mocksVerified;
+  body.appendChild(el(`<div class="verdict ${done?"v-green":"v-amber"}" style="margin-top:14px"><span class="pill">${done?"CLEAR TO SHIP":"NOT YET"}</span><span>${done?"Every scenario reconciled and analytics verified.":"Reconcile every scenario and confirm the event audit."}</span></div>`));
+  if(done&&!P.meta.g6) mutate(()=>{P.meta.g6=today(); P.meta.status="reconciled";},{preserveFreeze:true});
+}
+
+/* ============ FILES ============ */
+function genManifest(){
+  const m=P.meta,s=P.spec,r=P.review;
+  const scen=s.scenarios.filter(x=>x.name.trim());
+  const T=TIERS.find(x=>x[0]===m.tier)||TIERS[0];
+  const q=v=>`"${escY(v)}"`;
+  const y=[];
+  y.push(`# prd.manifest.yaml — generated by PRD Studio (standard v1.2)`);
+  y.push(`prd:`);
+  y.push(`  id: ${q(m.slug)}`); y.push(`  title: ${q(m.title)}`); y.push(`  owner: ${q(m.owner||"<pm-name>")}`);
+  y.push(`  tech_lead: ${q(m.tech||"<name>")}`); y.push(`  qa: ${q(m.qa||"<name>")}`); y.push(`  designer: ${q(m.designer||"none")}`);
+  y.push(`  tier: ${m.tier||"T1"}`); y.push(`  status: ${m.status}`); y.push(`  standard_version: "1.2"`);
+  y.push(`pinned_versions:`);
+  y.push(`  build_framework: "<repo ref / commit SHA>"`);
+  y.push(`  slim_scaffold: ${q(m.tier==="T2"?"studio-v0":"n/a")}`);
+  y.push(`  sanctioned_fork: ${q(m.tier==="T3"?"<fork ref + refresh date>":"n/a")}`);
+  y.push(`mandate:`);
+  y.push(`  mandatory: ${m.triggers.length?"true":"false"}`); y.push(`  triggers: [${m.triggers.join(", ")}]`); y.push(`  opt_out: "n/a"`);
+  y.push(`prototype:`);
+  y.push(`  kind: ${T[3]}`); y.push(`  entry: ${q(m.entry||"<URL, repo+branch, or file path>")}`); y.push(`  run: ${q(m.run||"<exact command, or open file>")}`); y.push(`  base: "n/a"`);
+  y.push(`data:`);
+  y.push(`  provenance: ${m.data==="staging-dump"?"staging-dump":"synthetic"}`);
+  y.push(`  dump_date: ${q(m.data==="staging-dump"?(m.dumpdate||"<YYYY-MM-DD>"):"n/a")}`);
+  y.push(`  scrub_pipeline: ${q(m.data==="staging-dump"?(m.pipeline||"<pipeline>"):"n/a")}`);
+  y.push(`  pii_scrubbed: ${m.data==="staging-dump"?"true":"null"}`);
+  y.push(`fidelity:`);
+  (s.fidelity.length?s.fidelity:[{path:"whole flow",label:T[4],note:"starting point"}]).forEach(f=>{
+    y.push(`  - path: ${q(f.path||"whole flow")}`); y.push(`    label: ${f.label}`); y.push(`    note: ${q(f.note||"")}`);
+  });
+  y.push(`coverage_plan:`);
+  y.push(`  agreed_at: ${q(r.coverageAgreed||"pending")}`);
+  y.push(`  scenarios:`);
+  (scen.length?scen:[{id:"S1",name:"<first scenario>",demonstrable:false,nd:false,ndreason:"",trigger:""}]).forEach(sc=>{
+    y.push(`    - id: ${sc.id}`); y.push(`      name: ${q(sc.name)}`);
+    y.push(`      status: ${sc.demonstrable?"demonstrable":(sc.nd?"not-demonstrable":"pending")}`);
+    y.push(`      not_demonstrable_reason: ${q(sc.nd?sc.ndreason:"n/a")}`);
+    y.push(`      links: { spec: "SPEC.md#edge-cases", events: [${s.events.filter(e=>e.name).map(e=>q(e.name)).join(", ")}], mocks: [], evidence: ${q(r.stranger.ran?"EVIDENCE/stranger-"+r.stranger.ran+".md":"pending")}, production_ref: "pending", reconcile: ${q(r.reconcile[sc.id]==="pass"?"pass":(r.reconcile[sc.id]==="deviation"?"deviation-approved":"pending"))} }`);
+  });
+  y.push(`artifacts:`);
+  y.push(`  spec: { file: SPEC.md, status: ${s.screens.length?"draft":"missing"} }`);
+  y.push(`  tracking: { file: TRACKING.md, status: ${s.events.length?"draft":"missing"} }`);
+  y.push(`  mocks: { file: MOCKS.md, status: missing }`);
+  y.push(`  decisions: { file: DECISIONS.md, status: missing }`);
+  y.push(`  handoff: { file: HANDOFF.md, status: missing }`);
+  y.push(`  evidence: { dir: EVIDENCE/, status: ${r.stranger.ran?"draft":"missing"} }`);
+  y.push(`  contracts: { dir: contracts/, status: missing }`);
+  y.push(`gates:`);
+  y.push(`  g0_frame: { passed: ${q(m.g0)}, by: ${q(m.owner||"pm")} }`);
+  y.push(`  g1_solution: { passed: ${q(s.screens.length?m.g0:"pending")}, by: ${q(m.owner||"")} }`);
+  y.push(`  g2_alpha_review: { passed: ${q(m.g2||"pending")}, tech_lead: ${q(m.tech||"")}, qa: ${q(m.qa||"")}, coverage_plan: ${q(r.coverageAgreed?"agreed":"pending")} }`);
+  y.push(`  g3_bundle_complete: { passed: ${q(gateState().g3?today():"pending")}, by: ${q(m.owner||"")} }`);
+  y.push(`  g4_freeze: { passed: ${q(m.g4||"pending")} }`);
+  y.push(`  g5_productionise: { passed: "pending", by: "" }`);
+  y.push(`  g6_reconcile: { passed: ${q(m.g6||"pending")}, by: ${q(m.qa||"")} }`);
+  y.push(`release:`);
+  y.push(`  release_id: ${q(m.g4?("prd-"+m.slug+"-r"+r.releaseNum):"pending")}`);
+  y.push(`  frozen: ${q(m.g4||"pending")}`);
+  y.push(`  prototype_commits: []`);
+  y.push(`  figma_versions: []`);
+  y.push(`  api_contracts: []`);
+  y.push(`  evidence_tag: ${q(m.g4?("prd/"+m.slug+"/r"+r.releaseNum):"pending")}`);
+  y.push(`  digest: "pending"`); // binding digest comes only from bin/freeze.py over repository artifacts
+  y.push(`  approvals:`);
+  y.push(`    pm_intent_behaviour: { by: ${q(r.signatures.pm||"")}, date: ${q(r.signatures.pm?r.signatures.pm.slice(0,10):"pending")} }`);
+  y.push(`    tech_feasibility_delta: { by: ${q(r.signatures.tech||"")}, date: ${q(r.signatures.tech?r.signatures.tech.slice(0,10):"pending")} }`);
+  y.push(`    qa_coverage_testability: { by: ${q(r.signatures.qa||"")}, date: ${q(r.signatures.qa?r.signatures.qa.slice(0,10):"pending")} }`);
+  y.push(`  supersedes: "n/a"`);
+  y.push(`cold_session:`);
+  y.push(`  passed: ${q(r.stranger.defects===0?r.stranger.ran:"pending")}`);
+  y.push(`  transcript: ${q(r.stranger.ran?"EVIDENCE/stranger-"+r.stranger.ran+".md":"EVIDENCE/cold-session-<date>.md")}`);
+  y.push(`  open_defects: ${r.stranger.defects}`);
+  y.push(`changelog:`);
+  y.push(`  - date: ${q(m.g0)}`); y.push(`    change: "created via PRD Studio"`); y.push(`    reason: "framing"`);
+  return y.join("\n");
+}
+function genSpecMd(){
+  const m=P.meta,s=P.spec;
+  const L=[`# SPEC — ${m.title}`,``,`| Owner | Status | Updated |`,`|---|---|---|`,`| ${m.owner||"?"} | ${m.status} | ${today()} |`,``,`## Screens`];
+  s.screens.forEach((scr,i)=>{
+    L.push(``,`### Screen ${i+1} — ${scr.name||"(unnamed)"}`,`Purpose: ${scr.purpose||""}`,``,`| Field | Required | Rule / format | Validation & error copy |`,`|---|---|---|---|`);
+    (scr.fields||[]).forEach(f=>L.push(`| ${f.f} | ${f.req?"Yes":"No"} | ${f.fmt} | "${f.err}" |`));
+  });
+  L.push(``,`## Edge cases`,``,`| Scenario | Case | Expected behaviour |`,`|---|---|---|`);
+  s.edges.forEach(e=>L.push(`| ${e.sid} | ${e.caseTxt} | ${e.expected} |`));
+  L.push(``,`## Coverage scenarios`,``,`| ID | Scenario | Demonstrable | How to trigger |`,`|---|---|---|---|`);
+  s.scenarios.filter(x=>x.name.trim()).forEach(sc=>L.push(`| ${sc.id} | ${sc.name} | ${sc.demonstrable?"yes":(sc.nd?"NOT-DEMONSTRABLE — "+sc.ndreason:"pending")} | ${sc.trigger||""} |`));
+  return L.join("\n");
+}
+function genTrackingMd(){
+  const L=[`# TRACKING — ${P.meta.title}`,``,`Every event fires visibly in the draft.`,``,`| Event | Fires when | Properties | Verified firing |`,`|---|---|---|---|`];
+  P.spec.events.forEach(e=>L.push(`| \`${e.name}\` | ${e.trigger} | ${e.props||""} | ${e.fires?"✓":"not yet"} |`));
+  return L.join("\n");
+}
+function renderFiles(body){
+  const files=[["prd.manifest.yaml","Cover sheet — machines read this first",genManifest(),"prd.manifest.txt"],["SPEC.md","How it behaves",genSpecMd(),"SPEC.md"],["TRACKING.md","What we track",genTrackingMd(),"TRACKING.md"]];
+  body.appendChild(el(`<div class="card"><h2>The bundle files</h2><p class="hint">Generated live from everything above — this is the machine layer. Copy them into the feature folder (<span class="mono">prd-${escH(P.meta.slug)}</span>), or save directly. Engineers and AI agents build from these.</p></div>`));
+  for(const [name,desc,content,dlname] of files){
+    const c=el(`<div class="card"><h2 class="mono" style="font-size:13px">${name}</h2><p class="hint">${desc}</p><pre>${escH(content)}</pre><div class="btnrow"><button class="primary">Copy</button><button>Save file</button></div></div>`);
+    const [copyB,saveB]=c.querySelectorAll("button");
+    copyB.addEventListener("click",async()=>{ try{ await navigator.clipboard.writeText(content); toast("Copied "+name); }catch(e){ toast("Select the text and copy manually"); } });
+    saveB.addEventListener("click",()=>{
+      try{
+        const url=URL.createObjectURL(new Blob([content],{type:"text/plain"}));
+        const a=el(`<a href="${url}" download="${escH(dlname)}"></a>`);
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(()=>URL.revokeObjectURL(url),1000);
+        toast(dlname===name?"Saved":"Saved — rename to "+name);
+      }catch(e){ toast("Saving unavailable — use Copy"); }
+    });
+    body.appendChild(c);
+  }
+}
+</script>
+</body>
+</html>

@@ -2,6 +2,10 @@
 
 **Humans: read [`PROCESS.md`](./PROCESS.md)** — the whole process in plain words, 3 minutes. **Engineers and AI agents: [`LIVING_PRD_STANDARD.md`](./LIVING_PRD_STANDARD.md)** is the strict spec behind it. This kit is what you copy into a feature; it runs the whole process manually until Tool v1 exists. Gates: G0 Frame → G1 Solution → **G2 Alpha Review** → G3 Complete → **G4 Freeze (3 signatures)** → G5 Productionise → **G6 Reconcile**.
 
+## PRD Studio server
+
+The shared, MySQL-backed web application now lives in [`studio/`](./studio/README.md). Its protected-staging release tooling and evidence contract live in [`deploy/prd-studio/`](./deploy/prd-studio/README.md). The application is prepared for the isolated route `/prd-studio/`; committing this code does not deploy it or authorize production.
+
 ## Use
 
 ```

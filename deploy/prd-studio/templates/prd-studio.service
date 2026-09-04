@@ -1,0 +1,51 @@
+[Unit]
+Description=BankKaro PRD Studio
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=prd-studio
+Group=prd-studio-socket
+SupplementaryGroups=prd-studio
+WorkingDirectory=/opt/prd-studio/current
+Environment=NODE_ENV=production
+Environment=AUTH_MODE=trusted_proxy
+Environment=BASE_PATH=/prd-studio
+Environment=SOCKET_PATH=/run/prd-studio/http.sock
+Environment=WRITE_FENCE_FILE=/var/lib/prd-studio/deployment-control/write-fence
+Environment=PATH=/usr/bin:/bin
+UnsetEnvironment=NODE_OPTIONS NODE_PATH TEAM_TOKEN DB_PASSWORD MIGRATION_DB_PASSWORD
+EnvironmentFile=/etc/prd-studio/prd-studio.env
+EnvironmentFile=/etc/prd-studio/release.env
+RuntimeDirectory=prd-studio
+RuntimeDirectoryMode=0750
+UMask=0117
+ExecStartPre=/usr/bin/rm -f /run/prd-studio/http.sock
+ExecStart=/usr/bin/node /opt/prd-studio/current/server.js
+ExecStopPost=/usr/bin/rm -f /run/prd-studio/http.sock
+Restart=on-failure
+RestartSec=2s
+TimeoutStartSec=20s
+TimeoutStopSec=15s
+KillMode=control-group
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectClock=yes
+ProtectControlGroups=yes
+ProtectHome=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectSystem=strict
+ReadWritePaths=/run/prd-studio
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target
